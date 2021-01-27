@@ -92,6 +92,7 @@ device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "
 
 image_h = 480
 image_w = 640
+# 训练函数
 def train():
     # 准备数据集
     train_data = data_eval.ReadNpy(transform=transforms.Compose([data_eval.scaleNorm(),
