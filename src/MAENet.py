@@ -5,9 +5,9 @@ from torch.nn import functional as F
 import torch.utils.model_zoo as model_zoo
 from torch.autograd import Variable
 # 在服务器上运行程序时要把.去掉
-from backbones import resnet
-from backbones.resnet import backbone_layers
-from ssdstructs.ssd_layers import Detect, PriorBox, L2Norm
+from .backbones import resnet
+# from .backbones.resnet import backbone_layers
+# from ssdstructs.ssd_layers import Detect, PriorBox, L2Norm
 from utils.config import Config
 sys.path.append('.')
 
@@ -29,7 +29,7 @@ class MAENet(nn.Module):
 		self.initial_block = InitialBlock(64, is_attention)
 		self.backbone = resnet.resnet50()
 		self.seg_head = SemanticSegBranch(2048, num_classes, use_psp)
-		self.detect_head = ObjDetectBranch(num_classes)
+		# self.detect_head = ObjDetectBranch(num_classes)
 
 		if pretrained:
 			self._load_resnet_pretrained()
@@ -37,7 +37,7 @@ class MAENet(nn.Module):
 	def forward(self, rgb, depth):
 		# out_initial.shape: [4, 64, 240, 320]
 		out = self.initial_block(rgb, depth)
-		print('out', out.shape)
+		# print('out', out.shape)
 		out = self.backbone(out)
 		# out_seg.shape: [4, 37, 480, 640]
 		out_seg = self.seg_head(out)
@@ -89,11 +89,13 @@ class InitialBlock(nn.Module):
 		out_depth = self.conv1_d(d)
 		out_depth = self.bn1_d(out_depth)
 		out_depth = self.relu(out_depth)
+		#attention一般不会用在encoder里面，一般是用在decoder下。
 		if self.is_attention:
 			atten_rgb = self.atten_rgb(out_rgb)
 			atten_depth = self.atten_depth(out_depth)
 			fuse = out_rgb.mul(atten_rgb) + out_depth.mul(atten_depth)
 		else:
+			# 这部分的相加我觉得太浅层了，只有第一层相加得到的信息不会太丰富
 			fuse = out_rgb + out_depth
 		return fuse
 
@@ -208,31 +210,37 @@ class SemanticSegBranch(nn.Module):
 		self.out2_conv = nn.Conv2d(64, num_classes, kernel_size=1, stride=1, bias=True)
 		self.drop_2 = nn.Dropout2d(p=0.15)
 
-	def forward(self, x):
+	def forward(self, p):
 		if self.use_psp:
-			p = self.psp(x)
+			# p = self.psp(x)
+			p = self.psp(p)
 			# print('psp:', p.shape)
 			p = self.drop_1(p)
-		else:
-			p = self.drop_1(x)
+		# else:
+		# 	p = self.drop_1(x) #一般不会在刚encoder完后就加上dropout层
 		p = self.up_1(p)
 		# print('up1:', p.shape)
+		#可能要加上encoder结构里的那几层
 		if self.training:
-			out5 = self.out5_conv(p)
+			# out5 = self.out5_conv(p)
+			out5 = F.softmax(p)
 		# p = self.drop_2(p)
 		p = self.up_2(p)
 		# print('up2:', p.shape)
 		if self.training:
-			out4 = self.out4_conv(p)
+			# out4 = self.out4_conv(p)
+			out4 = F.sigmoid(p)
 		# p = self.drop_2(p)
 		p = self.up_3(p)
 		# print('up3:', p.shape)
 		if self.training:
-			out3 = self.out3_conv(p)
+			# out3 = self.out3_conv(p)
+			out3 = 10 * p
 		# p = self.drop_2(p)
 		p = self.up_4(p)
 		if self.training:
-			out2 = self.out2_conv(p)
+			# out2 = self.out2_conv(p)
+			out2 = 10 * p
 		# p = self.drop_2(p)
 		final = self.final(p)
 		# print('final:', final.shape)
