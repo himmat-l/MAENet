@@ -130,63 +130,14 @@ def train():
             print('target_scales', target_scales[0].shape)
 
 
-def cal_param():
-    frame = inspect.currentframe()  # define a frame to track
-    gpu_tracker = MemTracker(frame)  # define a GPU tracker
-    gpu_tracker.track()  # run function between the code line where uses GPU
-
-    gpu_tracker.track()  # run function between the code line where uses GPU
-    '''
-    # 打印模型权重参数及大小
-    type_size = 4
-    para = sum([np.prod(list(p.size())) for p in model.parameters()])
-    print('Model {} : params: {:4f}M'.format(model._get_name(), para * type_size / 1000 / 1000))
-    input_image = data['image'].clone()
-    input_depth = data['depth'].clone()
-    input_image = input_image.to(device)
-    input_depth = input_depth.to(device)
-    # 确保不需要计算梯度，因为我们的目的只是为了计算中间变量而已
-    input_image.requires_grad_(requires_grad=False)
-    input_depth.requires_grad_(requires_grad=False)
-    # model.modules()会遍历model中所有的子层
-    mods = list(model.modules())
-    for i in range(2, len(mods)):
-        print('mods[{}]:{}'.format(i, mods[i]))
-    out_sizes = []
-    temp = None
-    for i in range(1, len(mods)):
-        m = mods[i]
-        # print('m[{0}]:{1}'.format(i, m))
-    # 注意这里，如果relu激活函数是inplace则不用计算
-        if isinstance(m, nn.ReLU):
-            if m.inplace:
-                continue
-        if i == 1:
-            out = m(input_image, input_depth)
-            temp = out
-        elif i == 15 or i == 161:
-            # 索引15是resnet模块，索引161是SemanticSegBranch模块
-            out = m(temp)
-            temp = out
-
-        out_sizes.append(np.array(out.size()))
-    total_nums = 0
-    for i in range(len(out_sizes)):
-        s = out_sizes[i]
-        nums = np.prod(np.array(s))
-        total_nums += nums
-    print('Model {} : intermedite variables: {:3f} M (without backward)'
-          .format(model._get_name(), total_nums * type_size / 1000 / 1000))
-    print('Model {} : intermedite variables: {:3f} M (with backward)'
-          .format(model._get_name(), total_nums * type_size * 2 / 1000 / 1000))
-    '''
+# 计算模型参数量
 class torchsummaryTests(unittest.TestCase):
     def test_multiple_input(self):
         in_batch, in_h, in_w = 4, 480, 640
         in_rgb = (3,480,640)
         in_dep = (1,480,640)
         # initialblock = InitialBlock(64, is_attention=False)
-        net = MAENet(num_classes=37, model_url=model_urls['resnet50'], use_psp=False)
+        net = MAENet(num_classes=37, model_url=model_urls['resnet50'], use_psp=True)
         total_params, trainable_params = summary(
             net, [in_rgb, in_dep], device='cpu')
         self.assertEqual(total_params, 31120)

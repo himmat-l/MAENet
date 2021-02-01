@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
-backbone_layers = []
+# backbone_layers = []
 class ResNet(nn.Module):
     def __init__(self, block, layers):
         super(ResNet, self).__init__()
@@ -10,7 +10,7 @@ class ResNet(nn.Module):
         # self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         # self.bn1 = nn.BatchNorm2d(64)
         # self.relu = nn.ReLU(inplace=True)
-        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
@@ -20,18 +20,18 @@ class ResNet(nn.Module):
         # x = self.conv1(x)
         # x = self.bn1(x)
         # x = self.relu(x)
-        # x = self.maxpool(x)
+        x = self.maxpool(x)
         print('x:', x.shape)
         x = self.layer1(x)
         print('layer1:', x.shape)
         x = self.layer2(x)
-        backbone_layers.append(x)
+        # backbone_layers.append(x)
         print('layer2:', x.shape)
         x = self.layer3(x)
-        backbone_layers.append(x)
+        # backbone_layers.append(x)
         print('layer3:', x.shape)
         x = self.layer4(x)
-        backbone_layers.append(x)
+        # backbone_layers.append(x)
         print('layer4:', x.shape)
 
         return x

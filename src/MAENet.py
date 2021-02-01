@@ -67,7 +67,10 @@ class MAENet(nn.Module):
 
 	# print(state_dict.keys())
 
-
+# RGB图与深度图融合的方式：
+# 1）直接堆叠成四个通道，但是利用堆叠方式融合深度信息对室内语义分割的精确度的贡献是有限的
+# 2）分支融合，利用两个相同的卷积神经网络分别提取两者的特征，并不断进行融合，最后输出融合的结果，
+#    一般RGB分支作为主分支，depth分支作为次分支，特征融合的过程一般将两者的特征提取 结果进行拼接或叠加
 class InitialBlock(nn.Module):
 	def __init__(self, out_channel, is_attention=True):
 		super().__init__()
