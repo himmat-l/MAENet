@@ -1,15 +1,26 @@
 import torch
 import torch.nn as nn
 import math
+from utils.utils import load_url
+
+
+model_urls = {
+    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+}
+
 
 # backbone_layers = []
 class ResNet(nn.Module):
     def __init__(self, block, layers):
         super(ResNet, self).__init__()
         self.inplanes = 64
-        # self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        # self.bn1 = nn.BatchNorm2d(64)
-        # self.relu = nn.ReLU(inplace=True)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
@@ -17,9 +28,9 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
     def forward(self, x):
-        # x = self.conv1(x)
-        # x = self.bn1(x)
-        # x = self.relu(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
         x = self.maxpool(x)
         print('x:', x.shape)
         x = self.layer1(x)
@@ -86,7 +97,7 @@ class BasicBlock(nn.Module):
 
     def conv3x3(self, in_channel, out_channel, stride=1):
         return nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride,
-                        padding=1, bias=False)
+                         padding=1, bias=False)
 
 
 class Bottleneck(nn.Module):
@@ -126,27 +137,39 @@ class Bottleneck(nn.Module):
 
         return out
 
-def resnet18():
+
+def resnet18(pretrained=False):
     model = ResNet(BasicBlock, [2, 2, 2, 2])
+    if pretrained:
+        model.load_state_dict(load_url(model_urls['resnet18']))
     return model
 
 
-def resnet34():
+def resnet34(pretrained=False):
     model = ResNet(BasicBlock, [3, 4, 6, 3])
+    if pretrained:
+        model.load_state_dict(load_url(model_urls['resnet34']))
     return model
 
 
-def resnet50():
+def resnet50(pretrained=False):
     model = ResNet(Bottleneck, [3, 4, 6, 3])
+    if pretrained:
+        model.load_state_dict(load_url(model_urls['resnet50']))
     return model
 
 
-def resnet101():
+def resnet101(pretrained=False):
     model = ResNet(Bottleneck, [3, 4, 23, 3])
+    if pretrained:
+        model.load_state_dict(load_url(model_urls['resnet101']))
     return model
 
-def resnet152():
+
+def resnet152(pretrained=False):
     model = ResNet(Bottleneck, [3, 8, 36, 3])
+    if pretrained:
+        model.load_state_dict(load_url(model_urls['resnet152']))
     return model
 
 
@@ -158,7 +181,3 @@ if __name__ == '__main__':
     resnet50 = resnet50()
     ressult = resnet50(rgb)
     print('out：', ressult.shape)
-
-
-
-

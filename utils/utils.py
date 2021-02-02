@@ -3,10 +3,13 @@ import numpy as np
 from torch import nn
 import torch
 import os
-
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
+try:
+    from urllib import urlretrieve
+except ImportError:
+    from urllib.request import urlretrieve
 
 med_frq = [0.382900, 0.452448, 0.637584, 0.377464, 0.585595,
            0.479574, 0.781544, 0.982534, 1.017466, 0.624581,
@@ -16,14 +19,6 @@ med_frq = [0.382900, 0.452448, 0.637584, 0.377464, 0.585595,
            4.483506, 2.209922, 1.120280, 2.790182, 0.706519,
            3.994768, 2.220004, 0.972934, 1.481525, 5.342475,
            0.750738, 4.040773]
-
-model_urls = {
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
-}
 
 '''
 NYUDv2_classes = ['background', 'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 'door',
@@ -49,6 +44,16 @@ label_colours = [(0, 0, 0),
                  (161, 176, 169), (80, 29, 135), (177, 105, 197),
                  (139, 110, 246)]
 
+
+def load_url(url, model_dir='./pretrained', map_location=None):
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    filename = url.split('/')[-1]
+    cached_file = os.path.join(model_dir, filename)
+    if not os.path.exists(cached_file):
+        sys.stderr.write('Downloading: "{}" to {}\n'.format(url, cached_file))
+        urlretrieve(url, cached_file)
+    return torch.load(cached_file, map_location=map_location)
 
 class CrossEntropyLoss2d_eval(nn.Module):
     def __init__(self, weight=med_frq):
