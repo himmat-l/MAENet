@@ -7,7 +7,7 @@ from torch.autograd import Variable
 # 在服务器上运行程序时要把.去掉
 from .backbones import resnet
 # from .backbones.resnet import backbone_layers
-# from ssdstructs.ssd_layers import Detect, PriorBox, L2Norm
+# from ssd_module.ssd_layers import Detect, PriorBox, L2Norm
 from utils.config import Config
 sys.path.append('.')
 

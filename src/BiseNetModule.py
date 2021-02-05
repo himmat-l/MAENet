@@ -2,13 +2,15 @@ import torch
 from torch import nn
 
 
-def conv3x3(in_channels, out_channels, stride, padding):
+def conv3x3(in_channels, out_channels, stride, padding=1):
 	"3x3 convolution with padding"
 	return nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride,
 	                 padding=padding, bias=False)
 
 
 # 深度图提取分支(BiseNet中的Spatial Path)。输入为普通深度图或HHA编码后的深度图
+# input[batch, channels, in_h, in_w]——》[batch, 64, in_h/2, in_w/2]
+# ——》[batch, 128, in_h/4, in_w/4]——》[batch, 256, in_h/8, in_w/8]
 class SpatialPath(nn.Module):
 	def __init__(self, in_channels):
 		super(SpatialPath, self).__init__()
@@ -22,10 +24,13 @@ class SpatialPath(nn.Module):
 		self.bn3 = nn.BatchNorm2d(256)
 		self.relu3 = nn.ReLU(inplace=True)
 
-	def forward(self, input):
-		x = self.relu1(self.bn1(self.conv1(input)))
+	def forward(self, x):
+		x = self.relu1(self.bn1(self.conv1(x)))
+		print(x.shape)
 		x = self.relu2(self.bn2(self.conv2(x)))
+		print(x.shape)
 		x = self.relu3(self.bn3(self.conv3(x)))
+		print(x.shape)
 		return x
 
 
@@ -74,3 +79,13 @@ class FFMBlock(nn.Module):
 		x = self.relu3(self.conv3(x))
 		x = torch.mul(x, feature)
 		x = torch.add(x, feature)
+		return x
+
+
+if __name__=="__main__":
+	batch_size, in_h, in_w = 4, 480, 640
+	in_rgb = torch.randn(batch_size, 3, 480, 640)
+	net = SpatialPath(3)
+	print(net.parameters())
+	out = net(in_rgb)
+
