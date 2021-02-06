@@ -26,11 +26,11 @@ class SpatialPath(nn.Module):
 
 	def forward(self, x):
 		x = self.relu1(self.bn1(self.conv1(x)))
-		print(x.shape)
+		# print(x.shape)
 		x = self.relu2(self.bn2(self.conv2(x)))
-		print(x.shape)
+		# print(x.shape)
 		x = self.relu3(self.bn3(self.conv3(x)))
-		print(x.shape)
+		# print(x.shape)
 		return x
 
 
@@ -43,14 +43,15 @@ class ARMBlock(nn.Module):
 		self.sigmoid = nn.Sigmoid()
 		self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
 
-	def forward(self, input):
-		x = self.avgpool(input)
-		assert self.in_channels == x.size(1), 'in_channels and out_channels should all be {}'.format(x.size(1))
-		x = self.conv(x)
-		x = self.bn(x)
-		x = self.sigmoid(x)
-		x = torch.mul(input, x)
-		return x
+	def forward(self, x):
+		out = self.avgpool(x)
+		# print('out', out.shape)
+		assert self.in_channels == out.size(1), 'in_channels and out_channels should all be {}'.format(x.size(1))
+		out = self.conv(out)
+		out = self.bn(out)
+		out = self.sigmoid(out)
+		out = torch.mul(x, out)
+		return out
 
 
 class FFMBlock(nn.Module):
@@ -69,6 +70,7 @@ class FFMBlock(nn.Module):
 
 	def forward(self, input1, input2):
 		x = torch.cat((input1, input2), dim=1)
+		# print('x', x.size(1), '\nin_channels', self.in_channels)
 		assert self.in_channels == x.size(1), 'in_channels of ConvBlock should be {}'.format(x.size(1))
 		feature = self.conv1(x)
 		feature = self.bn(feature)
@@ -84,8 +86,10 @@ class FFMBlock(nn.Module):
 
 if __name__=="__main__":
 	batch_size, in_h, in_w = 4, 480, 640
-	in_rgb = torch.randn(batch_size, 3, 480, 640)
-	net = SpatialPath(3)
+	in_rgb = torch.randn(batch_size, 256, 480, 640)
+	in_depth = torch.randn(batch_size, 256, 480, 640)
+	net = FFMBlock(512, 40)
 	print(net.parameters())
-	out = net(in_rgb)
+	result = net(in_rgb, in_depth)
+	print(result.shape)
 

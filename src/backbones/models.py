@@ -8,7 +8,8 @@ class ContextPath:
 
     @staticmethod
     def build_contextpath(arch='resnet50dilated', pretrained=False, weights=''):
-        arch = arch.lower()    #lower():将字符串转成小写
+        net = None
+        arch = arch.lower()    # lower():将字符串转成小写
         if arch == 'resnet18':
             orig_resnet = resnet.__dict__['resnet18'](pretrained=pretrained)
             net = Resnet(orig_resnet)
@@ -169,5 +170,5 @@ if __name__ == '__main__':
     in_batch, in_h, in_w = 4, 480, 640
     rgb = torch.randn(in_batch, 3, in_h, in_w)
     context_path = ContextPath()
-    net = context_path.build_contextpath(arch='resnet18')(rgb)
-    print(net[0].shape, net[1].shape, net[2].shape)
+    # net = context_path.build_contextpath(arch='resnet18')(rgb)
+    # print(net[0].shape, net[1].shape, net[2].shape)

@@ -206,14 +206,14 @@ class ToTensor(object):
         image, depth, label = sample['image'], sample['depth'], sample['label']
 
         # Generate different label scales
-        label2 = skimage.transform.resize(label, (label.shape[0] // 2, label.shape[1] // 2),
-                                          order=0, mode='reflect', preserve_range=True)
-        label3 = skimage.transform.resize(label, (label.shape[0] // 4, label.shape[1] // 4),
-                                          order=0, mode='reflect', preserve_range=True)
-        label4 = skimage.transform.resize(label, (label.shape[0] // 8, label.shape[1] // 8),
-                                          order=0, mode='reflect', preserve_range=True)
-        label5 = skimage.transform.resize(label, (label.shape[0] // 16, label.shape[1] // 16),
-                                          order=0, mode='reflect', preserve_range=True)
+        # label2 = skimage.transform.resize(label, (label.shape[0] // 2, label.shape[1] // 2),
+        #                                   order=0, mode='reflect', preserve_range=True)
+        # label3 = skimage.transform.resize(label, (label.shape[0] // 4, label.shape[1] // 4),
+        #                                   order=0, mode='reflect', preserve_range=True)
+        # label4 = skimage.transform.resize(label, (label.shape[0] // 8, label.shape[1] // 8),
+        #                                   order=0, mode='reflect', preserve_range=True)
+        # label5 = skimage.transform.resize(label, (label.shape[0] // 16, label.shape[1] // 16),
+        #                                   order=0, mode='reflect', preserve_range=True)
 
         # swap color axis because
         # numpy image: H x W x C
@@ -223,8 +223,15 @@ class ToTensor(object):
         return {'image': torch.from_numpy(image).float(),
                 'depth': torch.from_numpy(depth).float(),
                 'label': torch.from_numpy(label).float(),
-                'label2': torch.from_numpy(label2).float(),
-                'label3': torch.from_numpy(label3).float(),
-                'label4': torch.from_numpy(label4).float(),
-                'label5': torch.from_numpy(label5).float()}
+                # 'label2': torch.from_numpy(label2).float(),
+                # 'label3': torch.from_numpy(label3).float(),
+                # 'label4': torch.from_numpy(label4).float(),
+                # 'label5': torch.from_numpy(label5).float()
+                }
+
+if __name__ == '__main__':
+    label = np.load('/home/liuxiaohui/MAENet/data/NYUDv2/labels/1.npy')
+    np.savetxt('/home/liuxiaohui/MAENet/data/NYUDv2/labels/1.txt', label, fmt='%s', newline='\n')
+    # print(label[:10][:10])
+
 

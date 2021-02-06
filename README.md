@@ -21,3 +21,4 @@ Pytorch 训练时无用的临时变量可能会越来越多，导致 out of memo
   self.fc1 = nn.Linear(16 * 5 * 5, 120)
   self.fc2 = nn.Linear(120, 84)
   self.fc3 = nn.Linear(84, 10)
+5.pytorch中的nn.CrossEntropyLoss()是将softmax与log-NLLLoss合并到一块得到的结果https://zhuanlan.zhihu.com/p/98785902
