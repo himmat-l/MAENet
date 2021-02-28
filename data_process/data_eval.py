@@ -9,9 +9,10 @@ import torch
 
 image_h = 480
 image_w = 640
-train_file = '../data/NYUDv2/train.txt'
-test_file = '../data/NYUDv2/test.txt'
-
+# train_file = '../data/NYUDv2/train.txt'
+# test_file = '../data/NYUDv2/test.txt'
+train_file = '/home/liuxiaohui/MAENet/data/sunrgbd/train37.txt'
+test_file = '/home/liuxiaohui/MAENet/data/sunrgbd/test37.txt'
 def make_dataset_fromlst(listfilename):
     """
     NYUlist format:

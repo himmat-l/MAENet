@@ -11,17 +11,22 @@ from tqdm import tqdm
 import h5py
 import scipy
 
-imgpath = './SUNRGBD'
-SUNRGBDMeta_dir = './SUNRGBDtoolbox/Metadata/SUNRGBDMeta.mat'
-SUNRGBD2Dseg_dir = './SUNRGBDtoolbox/Metadata/SUNRGBD2Dseg.mat'
-labeltxt = "./label.txt"
+imgpath = './SUNRGBD/SUNRGBD/SUNRGBD'
+SUNRGBDMeta_dir = './SUNRGBD/SUNRGBDtoolbox/SUNRGBDtoolbox/Metadata/SUNRGBDMeta.mat'
+SUNRGBD2Dseg_dir = './SUNRGBD/SUNRGBDtoolbox/SUNRGBDtoolbox/Metadata/SUNRGBD2Dseg.mat'
+labeltxt = '/home/liuxiaohui/MAENet/data/labels/label.txt'
 imagepath = './images'
 labelpath = './labels'
 depthpath = './depth'
 visualpath = './visual'
 
+SUNRGBD_Label = ['wall','floor','cabinet','bed','chair','sofa','table','door','window','bookshelf','picture','counter',
+                 'blinds','desk','shelves','curtain','dresser','pillow','mirror','floor_mat','clothes','ceiling','books',
+                 'fridge','tv','paper','towel','shower_curtain','box','whiteboard','person','night_stand','toilet','sink',
+                 'lamp','bathtub','bag']
 # 将mat格式的文件转换为img
-def mat_to_img(path):
+# path: [imagepath, labelpath, visualpath]
+def sunrgbd_prepare(path):
 	for p in path:
 		if not osp.exists(p):
 			os.makedirs(p)
@@ -34,14 +39,58 @@ def mat_to_img(path):
 	SUNRGBD2Dseg = h5py.File(SUNRGBD2Dseg_dir, mode='r', libver='latest')
 	SUNRGBDMeta = scipy.io.loadmat(SUNRGBDMeta_dir, squeeze_me=True,
 	                               struct_as_record=False)['SUNRGBDMeta']
+	print('SUNRGBDMeta', SUNRGBDMeta.shape)
 	seglabel = SUNRGBD2Dseg['SUNRGBD2Dseg']['seglabel']
+	print('seglabel', seglabel.shape)
 	# classlabels
 	seg37list = SUNRGBD2Dseg['seg37list']
 	for i in range(seg37list.size):
 		classstring = np.array(SUNRGBD2Dseg[seg37list[i][0]]).tostring().decode('utf-8')
 		classstring = classstring.replace("\x00", "")
-		print(classstring)
+		# print(classstring)
 		labels.append(classstring)
+		# print('labels',labels)
+	with open(labeltxt, 'w') as f:
+		content = ','.join(labels)
+		f.write(content)
+
+	for i, meta in tqdm(enumerate(SUNRGBDMeta)):
+		# print(i)
+		meta_dir = '/'.join(meta.rgbpath.split('/')[:-2])
+		real_dir = meta_dir.split('/n/fs/sun3d/data/SUNRGBD/')[1]
+		rgb_path = os.path.join(real_dir, 'image/' + meta.rgbname)
+
+		# rgbimage
+		srcname = osp.join(imgpath, rgb_path)
+		t = "sun_{}".format(i)
+		dstname = osp.join(imagepath, t)
+		shutil.copy(srcname, dstname)
+		rgbimg = Image.open(srcname)
+
+		# labelimage
+		label = np.array(
+			SUNRGBD2Dseg[seglabel[i][0]][:].transpose(1, 0)). \
+			astype(np.uint8)
+		labelname = osp.join(labelpath, t.replace(".jpg", ".txt"))
+		np.savetxt(labelname, label, fmt='%d')
+		labelname = osp.join(labelpath, t.replace(".jpg", ".png"))
+		labelimg = Image.fromarray(label, 'L')
+		labelimg.save(labelname)
+
+		# debug show
+		# plt.subplot(1, 2, 1)
+		# plt.imshow(rgbimg)
+		# plt.subplot(1, 2, 2)
+		# plt.imshow(labelimg)
+		# plt.show()
+
+		# visualimage
+		visualname = osp.join(visualpath, t.replace(".jpg", ".png"))
+		visualimg = Image.fromarray(label, "P")
+		palette = bin_colormap  # long palette of 768 items
+		visualimg.putpalette(palette)
+		visualimg.save(visualname, format='PNG')
+
 
 # 将npy格式的文件转换为img
 def npy_to_img():
@@ -52,7 +101,9 @@ def npy_to_img():
 
 
 if __name__ == '__main__':
-	npy_to_img()
+
+	path_1 = [imagepath, labelpath, visualpath]
+	sunrgbd_prepare(path_1)
 
 
 

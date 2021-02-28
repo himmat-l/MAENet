@@ -46,6 +46,7 @@ class Resnet(nn.Module):
         # global average pooling to build tail
         tail = torch.mean(feature4, 3, keepdim=True)
         tail = torch.mean(tail, 2, keepdim=True)
+        print('全局池化：',tail.shape)
         return feature3, feature4, tail
 
 class ResnetDilated(nn.Module):
@@ -170,5 +171,5 @@ if __name__ == '__main__':
     in_batch, in_h, in_w = 4, 480, 640
     rgb = torch.randn(in_batch, 3, in_h, in_w)
     context_path = ContextPath()
-    # net = context_path.build_contextpath(arch='resnet18')(rgb)
-    # print(net[0].shape, net[1].shape, net[2].shape)
+    result= context_path.build_contextpath(arch='resnet18')(rgb)
+    print(result[0].shape, result[1].shape, result[2].shape)

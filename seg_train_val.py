@@ -72,19 +72,8 @@ parser.add_argument('--context_path', type=str, default='resnet101',
 args = parser.parse_args()
 
 # 设置每个类别的权重，在计算损失时使用,当训练集不平衡时该参数十分有用。 len(nyuv2_frq)=40
-nyuv2_frq = []
-weight_path = './data/NYUDv2/nyuv2_40class_weight.txt'
+
 device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
-
-with open(weight_path, 'r') as f:
-    context = f.readlines()
-
-for x in context[0:]:
-    x = x.strip().strip('\ufeff')
-    # 初始化权重
-    nyuv2_frq.append(float(x))
-weight = (torch.from_numpy(np.array(nyuv2_frq))).to(device)
-
 image_h = 480
 image_w = 640
 # 训练函数
@@ -105,10 +94,20 @@ def train():
                                    data_dir=args.train_data_dir)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.workers, pin_memory=False, drop_last=True)
-
+    val_data = data_eval.ReadNpy(transform=transforms.Compose([data_eval.scaleNorm(),
+                                                                 data_eval.RandomScale((1.0, 1.4)),
+                                                                 data_eval.RandomHSV((0.9, 1.1),
+                                                                                     (0.9, 1.1),
+                                                                                     (25, 25)),
+                                                                 data_eval.RandomCrop(image_h, image_w),
+                                                                 data_eval.RandomFlip(),
+                                                                 data_eval.ToTensor(),
+                                                                 data_eval.Normalize()]),
+                                   data_dir=args.val_data_dir)
+    val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True,
+                              num_workers=args.workers, pin_memory=False, drop_last=True)
     num_train = len(train_data)
-    # data = iter(train_loader).next()
-    # print('data:', data['image'].shape)
+    num_val = len(val_data)
 
     # build model
     if args.last_ckpt:
@@ -131,20 +130,13 @@ def train():
     # 如果有模型的训练权重，则获取global_step，start_epoch
     if args.last_ckpt:
         global_step, args.start_epoch = load_ckpt(model, optimizer, args.last_ckpt, device)
-
-    # # 监测使用哪几个GPU
-    # if torch.cuda.device_count() > 1:
-    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
-    #     # nn.DataParallel(module, device_ids=None, output_device=None, dim=0):使用多块GPU进行计算
-    #     model = nn.DataParallel(model)
-
-
-
-    model = model.to(device)
+    if torch.cuda.device_count() > 1 and args.cuda and torch.cuda.is_available():
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = torch.nn.DataParallel(model).to(device)
     model.train()
     # cal_param(model, data)
-    loss_func = nn.CrossEntropyLoss(weight=weight.float())
-
+    loss_func = nn.CrossEntropyLoss()
+    max_miou = 0
     for epoch in range(int(args.start_epoch), args.epochs):
         tq = tqdm(total=len(train_loader) * args.batch_size)
         lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
