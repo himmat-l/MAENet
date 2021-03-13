@@ -3,9 +3,13 @@ from torch.utils.data import Dataset
 import matplotlib
 import matplotlib.colors
 import skimage.transform
+import cv2
 import random
 import torchvision
 import torch
+from matplotlib import image as mpimg
+import os
+from scipy import misc
 
 image_h = 480
 image_w = 640
@@ -13,6 +17,8 @@ image_w = 640
 # test_file = '../data/NYUDv2/test.txt'
 train_file = '/home/liuxiaohui/MAENet/data/sunrgbd/train37.txt'
 test_file = '/home/liuxiaohui/MAENet/data/sunrgbd/test37.txt'
+
+
 def make_dataset_fromlst(listfilename):
     """
     NYUlist format:
@@ -21,7 +27,7 @@ def make_dataset_fromlst(listfilename):
     images = []
     segs = []
     depths = []
-    with open(listfilename,'r') as f:
+    with open(listfilename, 'r') as f:
         content = f.readlines()
         # print('content:',content)
         # print('content_split:',content[0].strip().split(' '))
@@ -31,10 +37,10 @@ def make_dataset_fromlst(listfilename):
                 images += [imgname]
                 segs += [segname]
                 depths += [depthname]
-    return {'images':images, 'labels':segs, 'depths':depths}
+    return {'images': images, 'labels': segs, 'depths': depths}
 
 
-class ReadNpy(Dataset):
+class ReadData(Dataset):
     def __init__(self, transform=None, data_dir=None):
         self.data_dir = data_dir
         self.transform = transform
@@ -64,14 +70,20 @@ class ReadNpy(Dataset):
             depth_dir = self.depth_dir_test
             label_dir = self.label_dir_test
 
-        label = np.load(label_dir[idx])
-        depth = np.load(depth_dir[idx])
-        image = np.load(img_dir[idx])
+        # 当图像格式为npy
+        # label = np.load(label_dir[idx])
+        # depth = np.load(depth_dir[idx])
+        # image = np.load(img_dir[idx])
+        # 当图像格式为jpg或png   uint8   uint16
+        label = misc.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', label_dir[idx]))
+        depth = misc.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', depth_dir[idx]))/10000
+        image = mpimg.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', img_dir[idx]))
 
         sample = {'image': image, 'depth': depth, 'label': label}
 
         if self.transform:
             sample = self.transform(sample)
+        # observe = torch.max(sample['label'])
 
         return sample
 
@@ -192,10 +204,10 @@ class Normalize(object):
         #                                          std=[0.229, 0.224, 0.225])(image)
         image = torchvision.transforms.Normalize(mean=[0.4850042694973687, 0.41627756261047333, 0.3981809741523051],
                                                  std=[0.26415541082494515, 0.2728415392982039, 0.2831175140191598])(image)
-        depth = torchvision.transforms.Normalize(mean=[2.8424503515351494],
-                                                 std=[0.9932836506164299])(depth)
+        # depth = torchvision.transforms.Normalize(mean=[2.8424503515351494],
+        #                                          std=[0.9932836506164299])(depth)
         sample['image'] = image
-        sample['depth'] = depth
+        # sample['depth'] = depth
 
         return sample
 
@@ -231,8 +243,14 @@ class ToTensor(object):
                 }
 
 if __name__ == '__main__':
-    label = np.load('/home/liuxiaohui/MAENet/data/NYUDv2/labels/1.npy')
-    np.savetxt('/home/liuxiaohui/MAENet/data/NYUDv2/labels/1.txt', label, fmt='%s', newline='\n')
+    # label_1 = np.load('/home/liuxiaohui/MAENet/data/NYUDv2/depths/1.npy') #(480,640)
+    # label_2 = mpimg.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', 'depth/train/00002790.png'))
+    # print(label_1.shape)
+    # print(label_2.shape)
+    weight = np.load('/home/liuxiaohui/MAENet/data/sunrgbd/sunrgbd_classes_weights.npy')
+    np.savetxt('/home/liuxiaohui/MAENet/data/sunrgbd_classes_weights.txt', weight, fmt='%.8f')
+    print(weight)
+    # np.savetxt('/home/liuxiaohui/MAENet/data/NYUDv2/labels/1.txt', label_1, fmt='%s', newline='\n')
     # print(label[:10][:10])
 
 

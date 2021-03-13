@@ -11,7 +11,9 @@ from torch.utils.data import DataLoader
 import datetime
 import cv2
 import torch.optim
+import os
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 from data_process import data_eval
 from src.MultiTaskCNN import MultiTaskCNN
 import utils.utils as utils
@@ -26,7 +28,7 @@ parser.add_argument('--cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('--last-ckpt', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
-parser.add_argument('--num-class', default=41, type=int,
+parser.add_argument('--num-class', default=38, type=int,
                     help='number of classes')
 parser.add_argument('--visualize', default=False, action='store_true',
                     help='if output image')
@@ -40,12 +42,12 @@ img_std = [0.229, 0.224, 0.225]
 
 
 def inference():
-	model = MultiTaskCNN(41, depth_channel=1, pretrained=False, arch='resnet18')
+	model = MultiTaskCNN(38, depth_channel=1, pretrained=False, arch='resnet18')
 	load_ckpt(model, None, args.last_ckpt, device)
 	model.eval()
 	model = model.to(device)
 
-	val_data = data_eval.ReadNpy(transform=torchvision.transforms.Compose([data_eval.scaleNorm(),
+	val_data = data_eval.ReadData(transform=torchvision.transforms.Compose([data_eval.scaleNorm(),
 	                                                                       data_eval.ToTensor(),
 	                                                                       Normalize()]),
 	                             data_dir=args.data_dir

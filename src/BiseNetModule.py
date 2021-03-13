@@ -27,11 +27,11 @@ class SpatialPath(nn.Module):
 	def forward(self, x):
 		x = self.relu1(self.bn1(self.conv1(x)))
 		# print(x.shape)
-		x = self.relu2(self.bn2(self.conv2(x)))
+		x1 = self.relu2(self.bn2(self.conv2(x)))
 		# print(x.shape)
-		x = self.relu3(self.bn3(self.conv3(x)))
+		x2 = self.relu3(self.bn3(self.conv3(x1)))
 		# print(x.shape)
-		return x
+		return x1, x2
 
 
 class ARMBlock(nn.Module):
@@ -49,6 +49,7 @@ class ARMBlock(nn.Module):
 		assert self.in_channels == out.size(1), 'in_channels and out_channels should all be {}'.format(x.size(1))
 		out = self.conv(out)
 		out = self.bn(out)
+		# print('out', out.shape)
 		out = self.sigmoid(out)
 		out = torch.mul(x, out)
 		return out

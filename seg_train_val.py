@@ -82,7 +82,7 @@ def train():
     writer = SummaryWriter(args.summary_dir)
 
     # 准备数据集
-    train_data = data_eval.ReadNpy(transform=transforms.Compose([data_eval.scaleNorm(),
+    train_data = data_eval.ReadData(transform=transforms.Compose([data_eval.scaleNorm(),
                                                                  data_eval.RandomScale((1.0, 1.4)),
                                                                  data_eval.RandomHSV((0.9, 1.1),
                                                                                      (0.9, 1.1),
@@ -94,20 +94,20 @@ def train():
                                    data_dir=args.train_data_dir)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.workers, pin_memory=False, drop_last=True)
-    val_data = data_eval.ReadNpy(transform=transforms.Compose([data_eval.scaleNorm(),
-                                                                 data_eval.RandomScale((1.0, 1.4)),
-                                                                 data_eval.RandomHSV((0.9, 1.1),
-                                                                                     (0.9, 1.1),
-                                                                                     (25, 25)),
-                                                                 data_eval.RandomCrop(image_h, image_w),
-                                                                 data_eval.RandomFlip(),
-                                                                 data_eval.ToTensor(),
-                                                                 data_eval.Normalize()]),
-                                   data_dir=args.val_data_dir)
-    val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True,
-                              num_workers=args.workers, pin_memory=False, drop_last=True)
+    # val_data = data_eval.ReadData(transform=transforms.Compose([data_eval.scaleNorm(),
+    #                                                              data_eval.RandomScale((1.0, 1.4)),
+    #                                                              data_eval.RandomHSV((0.9, 1.1),
+    #                                                                                  (0.9, 1.1),
+    #                                                                                  (25, 25)),
+    #                                                              data_eval.RandomCrop(image_h, image_w),
+    #                                                              data_eval.RandomFlip(),
+    #                                                              data_eval.ToTensor(),
+    #                                                              data_eval.Normalize()]),
+    #                                data_dir=args.val_data_dir)
+    # val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True,
+    #                           num_workers=args.workers, pin_memory=False, drop_last=True)
     num_train = len(train_data)
-    num_val = len(val_data)
+    # num_val = len(val_data)
 
     # build model
     if args.last_ckpt:
@@ -130,9 +130,10 @@ def train():
     # 如果有模型的训练权重，则获取global_step，start_epoch
     if args.last_ckpt:
         global_step, args.start_epoch = load_ckpt(model, optimizer, args.last_ckpt, device)
-    if torch.cuda.device_count() > 1 and args.cuda and torch.cuda.is_available():
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
-        model = torch.nn.DataParallel(model).to(device)
+    # if torch.cuda.device_count() > 1 and args.cuda and torch.cuda.is_available():
+    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    #     model = torch.nn.DataParallel(model).to(device)
+    model = model.to(device)
     model.train()
     # cal_param(model, data)
     loss_func = nn.CrossEntropyLoss()
@@ -143,7 +144,7 @@ def train():
         tq.set_description('epoch %d, lr %f' % (epoch, lr))
         loss_record = []
         local_count = 0
-        print('1')
+        # print('1')
         for batch_idx, data in enumerate(train_loader):
             image = data['image'].to(device)
             depth = data['depth'].to(device)

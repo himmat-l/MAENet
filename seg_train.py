@@ -4,14 +4,14 @@ sys.path.append('./')
 import argparse
 import os
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1 ,2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import time
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import torch.optim
 import torchvision.transforms as transforms
-from torchvision.utils import make_grid
+from torchvision.utils import make_grid, save_image
 from torch import nn
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import LambdaLR
@@ -19,7 +19,7 @@ from tqdm import tqdm
 from torchstat import stat
 import unittest
 import inspect
-
+import cv2
 from src.MultiTaskCNN import MultiTaskCNN
 from data_process import data_eval
 from utils import utils
@@ -30,21 +30,19 @@ from torchsummary import summary, summary_string
 
 # 参数定义
 parser = argparse.ArgumentParser(description='RGBD Sementic Segmentation')
-parser.add_argument('--train-data-dir', default=None, metavar='DIR',
+parser.add_argument('--data-dir', default=None, metavar='DIR',
                     help='path to dataset-train')
-parser.add_argument('--val-data-dir', default=None, metavar='DIR',
-                    help='path to dataset-val')
 parser.add_argument('--cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 8)')
-parser.add_argument('--epochs', default=1000, type=int, metavar='N',
+parser.add_argument('--epochs', default=500, type=int, metavar='N',
                     help='number of total epochs to run (default: 1500)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=4, type=int,
                     metavar='N', help='mini-batch size (default: 10)')
-parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.0001, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
@@ -70,11 +68,12 @@ parser.add_argument('--optimizer', default='rmsprop', help='optimizer, support r
 parser.add_argument('--context_path', type=str, default='resnet101',
                     help='The context path model you are using')
 args = parser.parse_args()
-
-# 设置每个类别的权重，在计算损失时使用,当训练集不平衡时该参数十分有用。 len(nyuv2_frq)=40
-nyuv2_frq = []
-weight_path = './data/NYUDv2/nyuv2_40class_weight.txt'
 device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+# 设置每个类别的权重，在计算损失时使用,当训练集不平衡时该参数十分有用。 len(nyuv2_frq)=40
+# nyuv2_frq = []
+# weight_path = './data/NYUDv2/nyuv2_40class_weight.txt'
+sunrgbd_frq = []
+weight_path = '/home/liuxiaohui/MAENet/data/sunrgbd_classes_weights.txt'
 
 with open(weight_path, 'r') as f:
     context = f.readlines()
@@ -82,8 +81,8 @@ with open(weight_path, 'r') as f:
 for x in context[0:]:
     x = x.strip().strip('\ufeff')
     # 初始化权重
-    nyuv2_frq.append(float(x))
-weight = (torch.from_numpy(np.array(nyuv2_frq))).to(device)
+    sunrgbd_frq.append(float(x))
+weight = (torch.from_numpy(np.array(sunrgbd_frq))).to(device)
 
 image_h = 480
 image_w = 640
@@ -93,7 +92,7 @@ def train():
     writer = SummaryWriter(args.summary_dir)
 
     # 准备数据集
-    train_data = data_eval.ReadNpy(transform=transforms.Compose([data_eval.scaleNorm(),
+    train_data = data_eval.ReadData(transform=transforms.Compose([data_eval.scaleNorm(),
                                                                  data_eval.RandomScale((1.0, 1.4)),
                                                                  data_eval.RandomHSV((0.9, 1.1),
                                                                                      (0.9, 1.1),
@@ -102,7 +101,7 @@ def train():
                                                                  data_eval.RandomFlip(),
                                                                  data_eval.ToTensor(),
                                                                  data_eval.Normalize()]),
-                                   data_dir=args.train_data_dir)
+                                   data_dir=args.data_dir)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.workers, pin_memory=False, drop_last=True)
 
@@ -112,9 +111,10 @@ def train():
 
     # build model
     if args.last_ckpt:
-        model = MultiTaskCNN(41, depth_channel=1, pretrained=False, arch='resnet18')
+        model = MultiTaskCNN(38, depth_channel=1, pretrained=False, arch='resnet18')
     else:
-        model = MultiTaskCNN(41, depth_channel=1, pretrained=True, arch='resnet18')
+        model = MultiTaskCNN(38, depth_channel=1, pretrained=True, arch='resnet18')
+    model = model.to(device)
 
 
     # build optimizer
@@ -139,8 +139,6 @@ def train():
     #     model = nn.DataParallel(model)
 
 
-
-    model = model.to(device)
     model.train()
     # cal_param(model, data)
     loss_func = nn.CrossEntropyLoss(weight=weight.float())
@@ -151,8 +149,9 @@ def train():
         tq.set_description('epoch %d, lr %f' % (epoch, lr))
         loss_record = []
         local_count = 0
-        print('1')
+        # print('1')
         for batch_idx, data in enumerate(train_loader):
+            # print(batch_idx)
             image = data['image'].to(device)
             depth = data['depth'].to(device)
             label = data['label'].long().to(device)
@@ -176,16 +175,23 @@ def train():
                 for name, param in model.named_parameters():
                     writer.add_histogram(name, param.clone().cpu().data.numpy(), global_step, bins='doane')
                 writer.add_graph(model,[image, depth])
-                # grid_image = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
-                # writer.add_image('image', grid_image, global_step)
-                # grid_image = make_grid(depth[:3].clone().cpu().data, 3, normalize=True)
-                # writer.add_image('depth', grid_image, global_step)
-                # grid_image = make_grid(utils.color_label(torch.max(output[:3], 1)[1] + 1), 3,
-                #                        normalize=False,
-                #                        range=(0, 255))
-                # writer.add_image('Predicted label', grid_image, global_step)
-                # grid_image = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
-                # writer.add_image('Groundtruth label', grid_image, global_step)
+                grid_image1 = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
+                writer.add_image('image', grid_image1, global_step)
+                grid_image2 = make_grid(depth[:3].clone().cpu().data, 3, normalize=True)
+                writer.add_image('depth', grid_image2, global_step)
+                grid_image3 = make_grid(utils.color_label(torch.max(output[:3], 1)[1]), 3,
+                                       normalize=False,
+                                       range=(0, 255))
+                writer.add_image('Predicted label', grid_image3, global_step)
+                grid_image4 = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
+                writer.add_image('Groundtruth label', grid_image4, global_step)
+                if batch_idx == 1:
+                    save_image(grid_image1, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/img.jpg', 3)
+                    save_image(grid_image2, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/depth.png', 3)
+                    save_image(grid_image4, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/Groundtruth.jpg', 3)
+                    save_image(grid_image3, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/Predicted{}.jpg'.format(global_step), 3)
+
+
 
 
         tq.close()

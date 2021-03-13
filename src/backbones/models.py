@@ -46,7 +46,7 @@ class Resnet(nn.Module):
         # global average pooling to build tail
         tail = torch.mean(feature4, 3, keepdim=True)
         tail = torch.mean(tail, 2, keepdim=True)
-        print('全局池化：',tail.shape)
+        # print('全局池化：',tail.shape)
         return feature3, feature4, tail
 
 class ResnetDilated(nn.Module):

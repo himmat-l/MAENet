@@ -21,6 +21,11 @@ med_frq = [0.382900, 0.452448, 0.637584, 0.377464, 0.585595,
            0.750738, 4.040773]
 
 '''
+SUN RGBD class:background,wall,floor,cabinet柜子,bed,chair,sofa,table,door,window,
+               bookshelf书架,picture,counter柜台,blinds百叶窗,desk,shelves架子,curtain窗帘,dresser化妆台,pillow枕头,
+               mirror,floor_mat地毯,clothes,ceiling天花板,books,fridge冰箱,tv,paper,towel毛巾,
+               shower_curtain浴帘,box,whiteboard,person,night_stand床头柜,toilet,sink水槽,lamp,bathtub浴缸,bag
+
 NYUDv2_classes = ['background', 'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 'door',
            'window', 'bookshelf', 'picture', 'counter', 'blinds', 'desk', 'shelves', 'curtain',
            'dresser', 'pillow', 'mirror', 'floor mat', 'clothes', 'ceiling', 'books', 'refridgerator',
@@ -29,9 +34,9 @@ NYUDv2_classes = ['background', 'wall', 'floor', 'cabinet', 'bed', 'chair', 'sof
 '''
 label_colours = [(0, 0, 0),
                  # 0=background
-                 (148, 65, 137), (255, 116, 69), (86, 156, 137),
-                 (202, 179, 158), (155, 99, 235), (161, 107, 108),
-                 (133, 160, 103), (76, 152, 126), (84, 62, 35),
+                 (148, 65, 137), (255, 116, 69), (223, 213, 19),
+                 (202, 179, 158), (189, 61, 64), (161, 107, 108),
+                 (133, 160, 103), (186, 25, 203), (84, 62, 35),
                  (44, 80, 130), (31, 184, 157), (101, 144, 77),
                  (23, 197, 62), (141, 168, 145), (142, 151, 136),
                  (115, 201, 77), (100, 216, 255), (57, 156, 36),
@@ -39,10 +44,10 @@ label_colours = [(0, 0, 0),
                  (155, 108, 249), (166, 148, 143), (81, 91, 87),
                  (100, 124, 51), (73, 131, 121), (157, 210, 220),
                  (134, 181, 60), (221, 223, 147), (123, 108, 131),
-                 (161, 66, 179), (163, 221, 160), (31, 146, 98),
+                 (161, 66, 179), (163, 221, 160), (198, 244, 2),
                  (99, 121, 30), (49, 89, 240), (116, 108, 9),
-                 (161, 176, 169), (80, 29, 135), (177, 105, 197),
-                 (139, 110, 246)]
+                 (161, 176, 169), (80, 29, 135), (177, 105, 197),(139, 110, 246)]
+# 剩下的颜色映射值：(161, 176, 169), (80, 29, 135), (177, 105, 197),(139, 110, 246)
 
 
 def load_url(url, model_dir='./pretrained', map_location=None):
@@ -186,6 +191,7 @@ def load_ckpt(model, optimizer, model_file, device):
         else:
             checkpoint = torch.load(model_file, map_location=lambda storage, loc: storage)
         model.load_state_dict(checkpoint['state_dict'])
+        # model = model.to(device)
         if optimizer:
             optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint '{}' (epoch {})"

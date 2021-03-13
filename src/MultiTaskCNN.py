@@ -28,6 +28,7 @@ class MultiTaskCNN(nn.Module):
 		rgb1, rgb2, tail = self.rgb_path(rgb)
 		# print('depth', depth_out.shape, '\nrgb1', rgb1.shape, '\nrgb2', rgb2.shape, '\ntail', tail.shape,)
 		rgb1 = self.arm_module1(rgb1)
+		# print('rgb1', rgb1.shape)
 		rgb2 = self.arm_module2(rgb2)
 		rgb2 = torch.mul(rgb2, tail)
 		# upsampling
