@@ -27,11 +27,11 @@ class SpatialPath(nn.Module):
 	def forward(self, x):
 		x = self.relu1(self.bn1(self.conv1(x)))
 		# print(x.shape)
-		x = self.relu2(self.bn2(self.conv2(x)))
+		x1 = self.relu2(self.bn2(self.conv2(x)))
 		# print(x.shape)
-		x = self.relu3(self.bn3(self.conv3(x)))
+		x2 = self.relu3(self.bn3(self.conv3(x1)))
 		# print(x.shape)
-		return x
+		return x1, x2
 
 
 class ARMBlock(nn.Module):
@@ -49,6 +49,7 @@ class ARMBlock(nn.Module):
 		assert self.in_channels == out.size(1), 'in_channels and out_channels should all be {}'.format(x.size(1))
 		out = self.conv(out)
 		out = self.bn(out)
+		# print('out', out.shape)
 		out = self.sigmoid(out)
 		out = torch.mul(x, out)
 		return out
@@ -85,11 +86,12 @@ class FFMBlock(nn.Module):
 
 
 if __name__=="__main__":
-	batch_size, in_h, in_w = 4, 480, 640
-	in_rgb = torch.randn(batch_size, 256, 480, 640)
+	batch_size, in_h, in_w = 4, 30, 40
+	in_rgb = torch.randn(batch_size, 256, in_h, in_w)
 	in_depth = torch.randn(batch_size, 256, 480, 640)
-	net = FFMBlock(512, 40)
-	print(net.parameters())
-	result = net(in_rgb, in_depth)
+	net = ARMBlock(256, 256)
+	# print(net.parameters())
+	# result = net(in_rgb, in_depth)
+	result = net(in_rgb)
 	print(result.shape)
 

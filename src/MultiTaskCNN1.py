@@ -2,14 +2,14 @@ import torch
 from torch import nn
 
 from .BiseNetModule import SpatialPath, FFMBlock, ARMBlock
-from .backbones.models import ContextPath
+from .backbones.models1 import ContextPath
 
 
 class MultiTaskCNN(nn.Module):
-	def __init__(self, num_classes, depth_channel=3, pretrained=False, arch='resnet18'):
+	def __init__(self, num_classes, depth_channel=3, pretrained=False, arch='resnet18', use_aspp=True):
 		super(MultiTaskCNN, self).__init__()
 		self.depth_path = SpatialPath(depth_channel)
-		self.rgb_path = ContextPath.build_contextpath(arch=arch, pretrained=pretrained)
+		self.rgb_path = ContextPath(arch=arch, pretrained=pretrained, use_aspp=use_aspp)
 		if arch == 'resnet18' or 'resnet18dilated':
 			self.arm_module1 = ARMBlock(256, 256)
 			self.arm_module2 = ARMBlock(512, 512)
@@ -24,10 +24,11 @@ class MultiTaskCNN(nn.Module):
 		self.conv = nn.Conv2d(in_channels=num_classes, out_channels=num_classes, kernel_size=1)
 
 	def forward(self, rgb, depth):
-		depth_out = self.depth_path(depth)
+		depth_out1, depth_out2 = self.depth_path(depth)
 		rgb1, rgb2, tail = self.rgb_path(rgb)
 		# print('depth', depth_out.shape, '\nrgb1', rgb1.shape, '\nrgb2', rgb2.shape, '\ntail', tail.shape,)
 		rgb1 = self.arm_module1(rgb1)
+		# print('rgb1', rgb1.shape)
 		rgb2 = self.arm_module2(rgb2)
 		rgb2 = torch.mul(rgb2, tail)
 		# upsampling
