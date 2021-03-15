@@ -24,6 +24,8 @@ from src.MultiTaskCNN import MultiTaskCNN
 from data_process import data_eval
 from utils import utils
 from utils.utils import save_ckpt, load_ckpt, print_log, poly_lr_scheduler
+import utils.utils as utils
+from utils.utils import load_ckpt, intersectionAndUnion, AverageMeter, accuracy, macc
 from gpu_mem_track import  MemTracker
 
 from torchsummary import summary, summary_string
@@ -38,13 +40,13 @@ parser.add_argument('--cuda', action='store_true', default=False,
                     help='enables CUDA training')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 8)')
-parser.add_argument('--epochs', default=1000, type=int, metavar='N',
+parser.add_argument('--epochs', default=500, type=int, metavar='N',
                     help='number of total epochs to run (default: 1500)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=4, type=int,
                     metavar='N', help='mini-batch size (default: 10)')
-parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
@@ -52,7 +54,7 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--print-freq', '-p', default=100, type=int,
                     metavar='N', help='print batch frequency (default: 50)')
-parser.add_argument('--save-epoch-freq', '-s', default=10, type=int,
+parser.add_argument('--save_epoch_freq', '-s', default=10, type=int,
                     metavar='N', help='save epoch frequency (default: 5)')
 parser.add_argument('--last-ckpt', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
@@ -69,6 +71,8 @@ parser.add_argument('--checkpoint', action='store_true', default=False,
 parser.add_argument('--optimizer', default='rmsprop', help='optimizer, support rmsprop, sgd, adam')
 parser.add_argument('--context_path', type=str, default='resnet101',
                     help='The context path model you are using')
+parser.add_argument('--num_class', type=str, default=38,
+                    help='num classes')
 args = parser.parse_args()
 
 # 设置每个类别的权重，在计算损失时使用,当训练集不平衡时该参数十分有用。 len(nyuv2_frq)=40
@@ -94,26 +98,22 @@ def train():
                                    data_dir=args.train_data_dir)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.workers, pin_memory=False, drop_last=True)
-    # val_data = data_eval.ReadData(transform=transforms.Compose([data_eval.scaleNorm(),
-    #                                                              data_eval.RandomScale((1.0, 1.4)),
-    #                                                              data_eval.RandomHSV((0.9, 1.1),
-    #                                                                                  (0.9, 1.1),
-    #                                                                                  (25, 25)),
-    #                                                              data_eval.RandomCrop(image_h, image_w),
-    #                                                              data_eval.RandomFlip(),
-    #                                                              data_eval.ToTensor(),
-    #                                                              data_eval.Normalize()]),
-    #                                data_dir=args.val_data_dir)
-    # val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True,
-    #                           num_workers=args.workers, pin_memory=False, drop_last=True)
+    val_data = data_eval.ReadData(transform=transforms.Compose([data_eval.scaleNorm(),
+                                                                 data_eval.RandomScale((1.0, 1.4)),
+                                                                 data_eval.RandomCrop(image_h, image_w),
+                                                                 data_eval.ToTensor(),
+                                                                 data_eval.Normalize()]),
+                                   data_dir=args.val_data_dir)
+    val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=True,
+                              num_workers=args.workers, pin_memory=False, drop_last=True)
     num_train = len(train_data)
     # num_val = len(val_data)
 
     # build model
     if args.last_ckpt:
-        model = MultiTaskCNN(41, depth_channel=1, pretrained=False, arch='resnet18')
+        model = MultiTaskCNN(38, depth_channel=1, pretrained=False, arch='resnet18')
     else:
-        model = MultiTaskCNN(41, depth_channel=1, pretrained=True, arch='resnet18')
+        model = MultiTaskCNN(38, depth_channel=1, pretrained=True, arch='resnet18')
 
 
     # build optimizer
@@ -138,6 +138,11 @@ def train():
     # cal_param(model, data)
     loss_func = nn.CrossEntropyLoss()
     max_miou = 0
+    acc_meter = AverageMeter()
+    intersection_meter = AverageMeter()
+    union_meter = AverageMeter()
+    a_meter = AverageMeter()
+    b_meter = AverageMeter()
     for epoch in range(int(args.start_epoch), args.epochs):
         tq = tqdm(total=len(train_loader) * args.batch_size)
         lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
@@ -169,27 +174,53 @@ def train():
                 for name, param in model.named_parameters():
                     writer.add_histogram(name, param.clone().cpu().data.numpy(), global_step, bins='doane')
                 writer.add_graph(model,[image, depth])
-                # grid_image = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
-                # writer.add_image('image', grid_image, global_step)
-                # grid_image = make_grid(depth[:3].clone().cpu().data, 3, normalize=True)
-                # writer.add_image('depth', grid_image, global_step)
-                # grid_image = make_grid(utils.color_label(torch.max(output[:3], 1)[1] + 1), 3,
-                #                        normalize=False,
-                #                        range=(0, 255))
-                # writer.add_image('Predicted label', grid_image, global_step)
-                # grid_image = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
-                # writer.add_image('Groundtruth label', grid_image, global_step)
+                grid_image1 = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
+                writer.add_image('image', grid_image1, global_step)
+                grid_image2 = make_grid(depth[:3].clone().cpu().data, 3, normalize=True)
+                writer.add_image('depth', grid_image2, global_step)
+                grid_image3 = make_grid(utils.color_label(torch.max(output[:3], 1)[1]), 3,
+                                        normalize=False,
+                                        range=(0, 255))
+                writer.add_image('Predicted label', grid_image3, global_step)
+                grid_image4 = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
+                writer.add_image('Groundtruth label', grid_image4, global_step)
 
 
         tq.close()
         loss_train_mean = np.mean(loss_record)
         writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
         print('loss for train : %f' % loss_train_mean)
+        print('----validation starting----')
+        with torch.no_grad():
+            for batch_idx, sample in enumerate(val_loader):
+                # origin_image = sample['origin_image'].numpy()
+                # origin_depth = sample['origin_depth'].numpy()
+                image = sample['image'].to(device)
+                depth = sample['depth'].to(device)
+                label = sample['label'].numpy()
+
+                with torch.no_grad():
+                    pred,_,_ = model(image, depth)
+                output = torch.max(pred, 1)[1]
+                output = output.squeeze(0).cpu().numpy()
+
+                acc, pix = accuracy(output, label)
+                intersection, union = intersectionAndUnion(output, label, args.num_class)
+                acc_meter.update(acc, pix)
+                a_m, b_m = macc(output, label, args.num_class)
+                intersection_meter.update(intersection)
+                union_meter.update(union)
+                a_meter.update(a_m)
+                b_meter.update(b_m)
+        mAcc = (a_meter.average() / (b_meter.average() + 1e-10))
+        writer.add_scalar('mAcc', mAcc.mean(), epoch)
+        print('----validation finished----')
         # 每隔save_epoch_freq个epoch就保存一次权重
         if epoch % args.save_epoch_freq == 0 and epoch != args.start_epoch:
             if not os.path.isdir(args.ckpt_dir):
                 os.mkdir(args.ckpt_dir)
             save_ckpt(args.ckpt_dir, model, optimizer, global_step, epoch, local_count, num_train)
+
 
 
 
