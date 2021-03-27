@@ -13,7 +13,7 @@ import cv2
 import torch.optim
 import os
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from data_process import data_eval
 from src.MultiTaskCNN import MultiTaskCNN
 import utils.utils as utils
@@ -69,8 +69,11 @@ def inference():
 			label = sample['label'].numpy()
 
 			with torch.no_grad():
+				time1 = datetime.datetime.now()
 				pred = model(image, depth)
-			output = torch.max(pred, 1)[1] + 1
+				time2 = datetime.datetime.now()
+				# print('推理时间：', (time2 - time1).seconds*1000000+(time2 - time1).microseconds)
+			output = torch.max(pred, 1)[1]
 			output = output.squeeze(0).cpu().numpy()
 
 			acc, pix = accuracy(output, label)

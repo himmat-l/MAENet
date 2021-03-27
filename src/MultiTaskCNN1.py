@@ -32,8 +32,8 @@ class MultiTaskCNN(nn.Module):
 		rgb2 = self.arm_module2(rgb2)
 		rgb2 = torch.mul(rgb2, tail)
 		# upsampling
-		rgb1 = torch.nn.functional.interpolate(rgb1, size=depth_out.size()[-2:], mode='bilinear')
-		rgb2 = torch.nn.functional.interpolate(rgb2, size=depth_out.size()[-2:], mode='bilinear')
+		rgb1 = torch.nn.functional.interpolate(rgb1, size=depth_out2.size()[-2:], mode='bilinear')
+		rgb2 = torch.nn.functional.interpolate(rgb2, size=depth_out2.size()[-2:], mode='bilinear')
 		rgb_out = torch.cat((rgb1, rgb2), dim=1)
 		if self.training:
 			rgb1_sup = self.supervision1(rgb1)
@@ -42,7 +42,7 @@ class MultiTaskCNN(nn.Module):
 			rgb2_sup = torch.nn.functional.interpolate(rgb2_sup, size=rgb.size()[-2:], mode='bilinear')
 
 		# output of feature fusion module
-		result = self.ffm_module(depth_out, rgb_out)
+		result = self.ffm_module(depth_out2, rgb_out)
 
 		# upsampling
 		result = torch.nn.functional.interpolate(result, scale_factor=8, mode='bilinear')

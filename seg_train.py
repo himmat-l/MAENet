@@ -138,7 +138,6 @@ def train():
     #     # nn.DataParallel(module, device_ids=None, output_device=None, dim=0):使用多块GPU进行计算
     #     model = nn.DataParallel(model)
 
-
     model.train()
     # cal_param(model, data)
     loss_func = nn.CrossEntropyLoss(weight=weight.float())
@@ -185,11 +184,7 @@ def train():
                 writer.add_image('Predicted label', grid_image3, global_step)
                 grid_image4 = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
                 writer.add_image('Groundtruth label', grid_image4, global_step)
-                if batch_idx == 1:
-                    save_image(grid_image1, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/img.jpg', 3)
-                    save_image(grid_image2, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/depth.png', 3)
-                    save_image(grid_image4, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/Groundtruth.jpg', 3)
-                    save_image(grid_image3, '/home/liuxiaohui/MAENet/result/3.6semanti segmentation resnet18/Predicted{}.jpg'.format(global_step), 3)
+
 
 
 
@@ -203,6 +198,7 @@ def train():
             if not os.path.isdir(args.ckpt_dir):
                 os.mkdir(args.ckpt_dir)
             save_ckpt(args.ckpt_dir, model, optimizer, global_step, epoch, local_count, num_train)
+
 
 
 

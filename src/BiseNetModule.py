@@ -33,6 +33,17 @@ class SpatialPath(nn.Module):
 		# print(x.shape)
 		return x
 
+	def _conv_dw(self, in_channels, out_channels, stride):
+		return nn.Sequential(
+			nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride, padding=1, groups=in_channels,
+			          bias=False),
+			nn.BatchNorm2d(in_channels),
+			nn.ReLU(),
+			nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+			nn.BatchNorm2d(out_channels),
+			nn.ReLU(),
+		)
+
 
 class ARMBlock(nn.Module):
 	def __init__(self, in_channels, out_channels):
@@ -45,8 +56,8 @@ class ARMBlock(nn.Module):
 
 	def forward(self, x):
 		out = self.avgpool(x)
-		# print('out', out.shape)
-		assert self.in_channels == out.size(1), 'in_channels and out_channels should all be {}'.format(x.size(1))
+		# print('out', out.size(1), '\nin_channels', self.in_channels)
+		assert self.in_channels == out.size(1), 'In ARMBlock, in_channels and out_channels should all be {}'.format(x.size(1))
 		out = self.conv(out)
 		out = self.bn(out)
 		out = self.sigmoid(out)
@@ -71,7 +82,7 @@ class FFMBlock(nn.Module):
 	def forward(self, input1, input2):
 		x = torch.cat((input1, input2), dim=1)
 		# print('x', x.size(1), '\nin_channels', self.in_channels)
-		assert self.in_channels == x.size(1), 'in_channels of ConvBlock should be {}'.format(x.size(1))
+		assert self.in_channels == x.size(1), 'In FFMBlock, in_channels of ConvBlock should be {}'.format(x.size(1))
 		feature = self.conv1(x)
 		feature = self.bn(feature)
 		feature = self.relu1(feature)
@@ -86,10 +97,12 @@ class FFMBlock(nn.Module):
 
 if __name__=="__main__":
 	batch_size, in_h, in_w = 4, 480, 640
-	in_rgb = torch.randn(batch_size, 256, 480, 640)
+	in_rgb = torch.randn(batch_size, 1024, 30, 40)
 	in_depth = torch.randn(batch_size, 256, 480, 640)
-	net = FFMBlock(512, 40)
-	print(net.parameters())
-	result = net(in_rgb, in_depth)
+	# net = FFMBlock(2304, 40)
+	net = ARMBlock(1024, 1024)
+	# print(net.parameters())
+	# result = net(in_rgb, in_depth)
+	result = net(in_rgb)
 	print(result.shape)
 

@@ -14,6 +14,9 @@ class ContextPath:
             orig_resnet = resnet.__dict__['resnet18'](pretrained=pretrained)
             net = Resnet(orig_resnet)
             # net = Resnet(orig_resnet)
+        elif arch == 'resnet50':
+            orig_resnet = resnet.__dict__['resnet50'](pretrained=pretrained)
+            net = Resnet(orig_resnet)
 
         if len(weights) > 0:
             print('Loading weights for net_encoder')

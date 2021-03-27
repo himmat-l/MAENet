@@ -6,11 +6,11 @@ from .backbones.models import ContextPath
 
 
 class MultiTaskCNN(nn.Module):
-	def __init__(self, num_classes, depth_channel=3, pretrained=False, arch='resnet18'):
+	def __init__(self, num_classes, depth_channel=1, pretrained=False, arch='resnet18'):
 		super(MultiTaskCNN, self).__init__()
 		self.depth_path = SpatialPath(depth_channel)
 		self.rgb_path = ContextPath.build_contextpath(arch=arch, pretrained=pretrained)
-		if arch == 'resnet18' or 'resnet18dilated':
+		if arch == 'resnet18' or arch == 'resnet18dilated':
 			self.arm_module1 = ARMBlock(256, 256)
 			self.arm_module2 = ARMBlock(512, 512)
 			# supervision block
@@ -18,6 +18,15 @@ class MultiTaskCNN(nn.Module):
 			self.supervision2 = nn.Conv2d(in_channels=512, out_channels=num_classes, kernel_size=1)
 			# build feature fusion module
 			self.ffm_module = FFMBlock(1024, num_classes)
+		elif arch == 'resnet50' or arch == 'resnet50dilated':
+			self.arm_module1 = ARMBlock(1024, 1024)
+			self.arm_module2 = ARMBlock(2048, 2048)
+			# supervision block
+			self.supervision1 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
+			self.supervision2 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
+			# build feature fusion module
+			self.ffm_module = FFMBlock(3328, num_classes)
+
 		else:
 			print('Error: unspport context_path network \n')
 		# build final convolution
@@ -52,12 +61,12 @@ class MultiTaskCNN(nn.Module):
 		return result
 
 
-if __name__ =='__main__':
+if __name__ == '__main__':
 	in_batch, in_h, in_w = 2, 480, 640
 	in_rgb = torch.randn(in_batch, 3, in_h, in_w)
 	out_dep = torch.randn(in_batch, 1, in_h, in_w)
-	net = MultiTaskCNN(40, depth_channel=1)(in_rgb, out_dep)
-	print(net[0].shape, net[1].shape, net[2].shape)
+	net = MultiTaskCNN(40, depth_channel=1, arch='resnet50')(in_rgb, out_dep)
+	# print(net[0].shape, net[1].shape, net[2].shape)
 
 
 

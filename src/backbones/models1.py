@@ -23,6 +23,18 @@ from src.backbones import resnet, mobilenet
 #             pass
 #         return net
 
+class DetectPath(nn.Module):
+    def __init__(self, inchannels):
+        super(DetectPath, self).__init__()
+        self.inner_layer = nn.Conv2d(inchannels, 500, kernel_size=1, bias=False)
+        self.prediction_layer = nn.Conv2d(500, 6, kernel_size=1, bias=False)
+        self.delta_prediction_layer = nn.Conv2d(500, 6, kernel_size=1, bias=False)
+
+    def build_rezoom(self):
+        pass
+
+
+
 class ContextPath(nn.Module):
     def __init__(self, arch='resnet50', pretrained=False, use_aspp=False):
         super(ContextPath, self).__init__()

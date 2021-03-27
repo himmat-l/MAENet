@@ -3,11 +3,12 @@ import sys
 sys.path.append('./')
 import argparse
 import os
-
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1 ,2'
+import datetime
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import time
 import numpy as np
 import torch
+torch.cuda.set_device(0)
 from torch.utils.data import DataLoader
 import torch.optim
 import torchvision.transforms as transforms
@@ -54,7 +55,7 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--print-freq', '-p', default=100, type=int,
                     metavar='N', help='print batch frequency (default: 50)')
-parser.add_argument('--save_epoch_freq', '-s', default=10, type=int,
+parser.add_argument('--save_epoch_freq', '-s', default=5, type=int,
                     metavar='N', help='save epoch frequency (default: 5)')
 parser.add_argument('--last-ckpt', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
@@ -69,7 +70,7 @@ parser.add_argument('--summary-dir', default='./summary', metavar='DIR',
 parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='Using Pytorch checkpoint or not')
 parser.add_argument('--optimizer', default='rmsprop', help='optimizer, support rmsprop, sgd, adam')
-parser.add_argument('--context_path', type=str, default='resnet101',
+parser.add_argument('--context_path', type=str, default='resnet18',
                     help='The context path model you are using')
 parser.add_argument('--num_class', type=str, default=38,
                     help='num classes')
@@ -77,13 +78,17 @@ args = parser.parse_args()
 
 # 设置每个类别的权重，在计算损失时使用,当训练集不平衡时该参数十分有用。 len(nyuv2_frq)=40
 
-device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0")  #if args.cuda and torch.cuda.is_available() else "cpu"
 image_h = 480
 image_w = 640
 # 训练函数
 def train():
     # 记录数据在tensorboard中显示
-    writer = SummaryWriter(args.summary_dir)
+    writer_loss = SummaryWriter(os.path.join(args.summary_dir, 'loss'))
+    writer_loss1 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss1'))
+    writer_loss2 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss2'))
+    writer_loss3 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss3'))
+    writer_acc = SummaryWriter(os.path.join(args.summary_dir, 'acc'))
 
     # 准备数据集
     train_data = data_eval.ReadData(transform=transforms.Compose([data_eval.scaleNorm(),
@@ -137,17 +142,16 @@ def train():
     model.train()
     # cal_param(model, data)
     loss_func = nn.CrossEntropyLoss()
-    max_miou = 0
-    acc_meter = AverageMeter()
-    intersection_meter = AverageMeter()
-    union_meter = AverageMeter()
-    a_meter = AverageMeter()
-    b_meter = AverageMeter()
+    max_macc_val = 0
+    best_model = None
     for epoch in range(int(args.start_epoch), args.epochs):
         tq = tqdm(total=len(train_loader) * args.batch_size)
         lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
         tq.set_description('epoch %d, lr %f' % (epoch, lr))
         loss_record = []
+        loss1_record = []
+        loss2_record = []
+        loss3_record = []
         local_count = 0
         # print('1')
         for batch_idx, data in enumerate(train_loader):
@@ -167,59 +171,78 @@ def train():
             optimizer.step()
             global_step += 1
             local_count += image.data.shape[0]
-            writer.add_scalar('loss_step', loss, global_step)
+            writer_loss.add_scalar('loss_step', loss, global_step)
+            writer_loss1.add_scalar('loss1_step', loss1, global_step)
+            writer_loss2.add_scalar('loss2_step', loss2, global_step)
+            writer_loss3.add_scalar('loss3_step', loss3, global_step)
             loss_record.append(loss.item())
-
+            loss1_record.append(loss1.item())
+            loss2_record.append(loss2.item())
+            loss3_record.append(loss3.item())
             if global_step % args.print_freq == 0 or global_step == 1:
                 for name, param in model.named_parameters():
-                    writer.add_histogram(name, param.clone().cpu().data.numpy(), global_step, bins='doane')
-                writer.add_graph(model,[image, depth])
+                    writer_loss.add_histogram(name, param.clone().cpu().data.numpy(), global_step, bins='doane')
+                writer_loss.add_graph(model,[image, depth])
                 grid_image1 = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
-                writer.add_image('image', grid_image1, global_step)
+                writer_loss.add_image('image', grid_image1, global_step)
                 grid_image2 = make_grid(depth[:3].clone().cpu().data, 3, normalize=True)
-                writer.add_image('depth', grid_image2, global_step)
+                writer_loss.add_image('depth', grid_image2, global_step)
                 grid_image3 = make_grid(utils.color_label(torch.max(output[:3], 1)[1]), 3,
                                         normalize=False,
                                         range=(0, 255))
-                writer.add_image('Predicted label', grid_image3, global_step)
+                writer_loss.add_image('Predicted label', grid_image3, global_step)
                 grid_image4 = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
-                writer.add_image('Groundtruth label', grid_image4, global_step)
+                writer_loss.add_image('Groundtruth label', grid_image4, global_step)
 
 
         tq.close()
         loss_train_mean = np.mean(loss_record)
-        writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
+        loss1_train_mean = np.mean(loss1_record)
+        loss2_train_mean = np.mean(loss2_record)
+        loss3_train_mean = np.mean(loss3_record)
+        writer_loss.add_scalar('epoch/loss_epoch_train & mAcc', float(loss_train_mean), epoch)
+        writer_loss1.add_scalar('epoch/sub_loss_epoch_train', float(loss1_train_mean), epoch)
+        writer_loss2.add_scalar('epoch/sub_loss_epoch_train', float(loss2_train_mean), epoch)
+        writer_loss3.add_scalar('epoch/sub_loss_epoch_train', float(loss3_train_mean), epoch)
         print('loss for train : %f' % loss_train_mean)
         print('----validation starting----')
         with torch.no_grad():
+            acc_meter = AverageMeter()
+            intersection_meter = AverageMeter()
+            union_meter = AverageMeter()
+            a_meter = AverageMeter()
+            b_meter = AverageMeter()
             for batch_idx, sample in enumerate(val_loader):
+
                 # origin_image = sample['origin_image'].numpy()
                 # origin_depth = sample['origin_depth'].numpy()
-                image = sample['image'].to(device)
-                depth = sample['depth'].to(device)
-                label = sample['label'].numpy()
+                image_val = sample['image'].to(device)
+                depth_val = sample['depth'].to(device)
+                label_val = sample['label'].numpy()
 
                 with torch.no_grad():
-                    pred,_,_ = model(image, depth)
-                output = torch.max(pred, 1)[1]
-                output = output.squeeze(0).cpu().numpy()
+                    pred,_,_ = model(image_val, depth_val)
+                output_val = torch.max(pred, 1)[1]
+                output_val = output_val.squeeze(0).cpu().numpy()
 
-                acc, pix = accuracy(output, label)
-                intersection, union = intersectionAndUnion(output, label, args.num_class)
+                acc, pix = accuracy(output_val, label_val)
+                intersection, union = intersectionAndUnion(output_val, label_val, args.num_class)
                 acc_meter.update(acc, pix)
-                a_m, b_m = macc(output, label, args.num_class)
+                a_m, b_m = macc(output_val, label_val, args.num_class)
                 intersection_meter.update(intersection)
                 union_meter.update(union)
                 a_meter.update(a_m)
                 b_meter.update(b_m)
         mAcc = (a_meter.average() / (b_meter.average() + 1e-10))
-        writer.add_scalar('mAcc', mAcc.mean(), epoch)
+        # iou = intersection_meter.sum / (union_meter.sum + 1e-10)
+        writer_acc.add_scalar('epoch/loss_epoch_train & mAcc', mAcc.mean(), epoch)
         print('----validation finished----')
-        # 每隔save_epoch_freq个epoch就保存一次权重
+        # # 每隔save_epoch_freq个epoch就保存一次权重
         if epoch % args.save_epoch_freq == 0 and epoch != args.start_epoch:
             if not os.path.isdir(args.ckpt_dir):
                 os.mkdir(args.ckpt_dir)
             save_ckpt(args.ckpt_dir, model, optimizer, global_step, epoch, local_count, num_train)
+            # max_macc_val = mAcc.mean()
 
 
 
@@ -229,3 +252,5 @@ def train():
 
 if __name__ == '__main__':
     train()
+
+

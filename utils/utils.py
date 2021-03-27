@@ -192,8 +192,9 @@ def load_ckpt(model, optimizer, model_file, device):
             checkpoint = torch.load(model_file, map_location=lambda storage, loc: storage)
         model.load_state_dict(checkpoint['state_dict'])
         # model = model.to(device)
-        if optimizer:
-            optimizer.load_state_dict(checkpoint['optimizer'])
+        # 加进来会报错 一部分tensor在GPU，一部分在cpu
+        # if optimizer:
+        #     optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint '{}' (epoch {})"
               .format(model_file, checkpoint['epoch']))
         step = checkpoint['global_step']
@@ -281,8 +282,8 @@ class AverageMeter(object):
 
 
 # 学习率更新方式，采用poly方式
-def poly_lr_scheduler(optimizer, init_lr, iter, lr_decay_iter=1,
-                      max_iter=300, power=0.9):
+def poly_lr_scheduler(optimizer, init_lr, iter, max_iter, lr_decay_iter=1,
+                       power=0.9):
     """Polynomial decay of learning rate
         :param init_lr is base learning rate
         :param iter is a current iteration
