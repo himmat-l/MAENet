@@ -22,7 +22,7 @@ from torchstat import stat
 import unittest
 import inspect
 
-from src.MultiTaskCNN2 import MultiTaskCNN, MultiTaskCNN_DA
+from src.MultiTaskCNN2 import MultiTaskCNN
 from data_process import data_eval
 from utils import utils
 from utils.utils import save_ckpt, load_ckpt, print_log, poly_lr_scheduler
@@ -32,11 +32,9 @@ from gpu_mem_track import  MemTracker
 
 from torchsummary import summary, summary_string
 
-#------------------------------------#
-#   将ASPP的采样率改为4,8,12
-#   前100个epoch将骨架模型的参数冻结
-#   前150个epoch使用poly学习率调整，后面不变
-#------------------------------------#
+# -------------------------- #
+# 4/8 9：50 在156步时换成rmsprop,效果很差，换回去
+# -------------------------- #
 
 # 参数定义
 parser = argparse.ArgumentParser(description='RGBD Sementic Segmentation')
@@ -88,7 +86,7 @@ args = parser.parse_args()
 device = torch.device("cuda:2"if args.cuda and torch.cuda.is_available() else "cpu")  #if args.cuda and torch.cuda.is_available() else "cpu"
 image_h = 480
 image_w = 640
-log_file = '/home/liuxiaohui/MAENet/summary/3.31-modified/log.txt'
+log_file = '/home/liuxiaohui/MAENet/summary/4.4-dw-aspp/log.txt'
 # 训练函数
 def train():
     # 记录数据在tensorboard中显示
@@ -124,9 +122,9 @@ def train():
 
     # build model
     if args.last_ckpt:
-        model = MultiTaskCNN_DA(38, depth_channel=1, pretrained=False, arch='resnet50', use_aspp=True)
+        model = MultiTaskCNN(38, depth_channel=1, pretrained=False, arch='resnet50', use_aspp=True)
     else:
-        model = MultiTaskCNN_DA(38, depth_channel=1, pretrained=True, arch='resnet50', use_aspp=True)
+        model = MultiTaskCNN(38, depth_channel=1, pretrained=True, arch='resnet50', use_aspp=True)
 
 
     # build optimizer
@@ -141,7 +139,6 @@ def train():
         return None
     global_step = 0
     max_miou_val = 0
-    freeze_epoch = 100
     # 如果有模型的训练权重，则获取global_step，start_epoch
     if args.last_ckpt:
         global_step, args.start_epoch = load_ckpt(model, optimizer, args.last_ckpt, device)
@@ -153,16 +150,9 @@ def train():
     # cal_param(model, data)
     loss_func = nn.CrossEntropyLoss()
     for epoch in range(int(args.start_epoch), args.epochs):
-        if epoch <= freeze_epoch:
-            for layer in [model.conv1, model.maxpool,model.layer1, model.layer2, model.layer3, model.layer4]:
-                for param in layer.parameters():
-                    param.requires_grad = False
         tq = tqdm(total=len(train_loader) * args.batch_size)
-        if epoch <= 150:
-            lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
-        else:
-            lr = args.lr * (1 - 150 / args.epoch) ** 0.9
-            optimizer.param_groups[0]['lr'] = lr
+        # lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
+        lr = 0.005
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 30, gamma=0.5)
         tq.set_description('epoch %d, lr %f' % (epoch, lr))
         loss_record = []
@@ -291,13 +281,9 @@ def train():
 
 
 
+
 if __name__ == '__main__':
     train()
-
-
-
-
-
 
 
 

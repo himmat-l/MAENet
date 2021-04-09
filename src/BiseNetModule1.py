@@ -17,22 +17,49 @@ class SpatialPath(nn.Module):
 		self.conv1 = conv3x3(in_channels, 64, stride=2, padding=1)
 		self.bn1 = nn.BatchNorm2d(64)
 		self.relu1 = nn.ReLU(inplace=True)
-		self.conv2 = conv3x3(64, 128, stride=2, padding=1)
-		self.bn2 = nn.BatchNorm2d(128)
+		self.conv2 = conv3x3(64, 64, stride=2, padding=1)
+		self.bn2 = nn.BatchNorm2d(64)
 		self.relu2 = nn.ReLU(inplace=True)
-		self.conv3 = conv3x3(128, 256, stride=2, padding=1)
-		self.bn3 = nn.BatchNorm2d(256)
+		self.conv3 = conv3x3(64, 128, stride=2, padding=1)
+		self.bn3 = nn.BatchNorm2d(128)
 		self.relu3 = nn.ReLU(inplace=True)
 
 	def forward(self, x):
 		x = self.relu1(self.bn1(self.conv1(x)))
 		# print(x.shape)
 		x1 = self.relu2(self.bn2(self.conv2(x)))
-		# print(x.shape)
+		# print(x1.shape)
 		x2 = self.relu3(self.bn3(self.conv3(x1)))
-		# print(x.shape)
+		# print(x2.shape)
 		return x1, x2
 
+
+class SpatialPathwithDW(nn.Module):
+	def __init__(self, in_channels):
+		super(SpatialPathwithDW, self).__init__()
+		self.dw1 = self._conv_dw(in_channels, 64, 2)
+		self.dw2 = self._conv_dw(64, 64, 2)
+		self.dw3 = self._conv_dw(64, 128, 2)
+
+	def forward(self, x):
+		x = self.dw1(x)
+		# print(x.shape)
+		x1 = self.dw2(x)
+		# print(x1.shape)
+		x2 = self.dw3(x1)
+		# print(x2.shape)
+		return x1, x2
+
+	def _conv_dw(self, in_channels, out_channels, stride):
+		return nn.Sequential(
+			nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride, padding=1, groups=in_channels,
+			          bias=False),
+			nn.BatchNorm2d(in_channels),
+			nn.ReLU(),
+			nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+			nn.BatchNorm2d(out_channels),
+			nn.ReLU(),
+		)
 
 class ARMBlock(nn.Module):
 	def __init__(self, in_channels, out_channels):
@@ -72,7 +99,7 @@ class FFMBlock(nn.Module):
 	def forward(self, input1, input2):
 		x = torch.cat((input1, input2), dim=1)
 		# print('x', x.size(1), '\nin_channels', self.in_channels)
-		assert self.in_channels == x.size(1), 'in_channels of ConvBlock should be {}'.format(x.size(1))
+		assert self.in_channels == x.size(1), 'In FFMBlock, in_channels of ConvBlock should be {}'.format(x.size(1))
 		feature = self.conv1(x)
 		feature = self.bn(feature)
 		feature = self.relu1(feature)
@@ -88,10 +115,11 @@ class FFMBlock(nn.Module):
 if __name__=="__main__":
 	batch_size, in_h, in_w = 4, 30, 40
 	in_rgb = torch.randn(batch_size, 256, in_h, in_w)
-	in_depth = torch.randn(batch_size, 256, 480, 640)
-	net = ARMBlock(256, 256)
+	in_depth = torch.randn(batch_size, 1, 480, 640)
+	net = SpatialPath(1)
+	# net = ARMBlock(256, 256)
 	# print(net.parameters())
 	# result = net(in_rgb, in_depth)
-	result = net(in_rgb)
+	result = net(in_depth)
 	print(result.shape)
 

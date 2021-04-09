@@ -298,3 +298,5 @@ def poly_lr_scheduler(optimizer, init_lr, iter, max_iter, lr_decay_iter=1,
     lr = init_lr*(1 - iter/max_iter)**power
     optimizer.param_groups[0]['lr'] = lr
     return lr
+
+

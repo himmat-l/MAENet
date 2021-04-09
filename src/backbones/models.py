@@ -171,6 +171,7 @@ class MobileNetV2Dilated(nn.Module):
 
 
 if __name__ == '__main__':
+
     in_batch, in_h, in_w = 4, 480, 640
     rgb = torch.randn(in_batch, 3, in_h, in_w)
     context_path = ContextPath()

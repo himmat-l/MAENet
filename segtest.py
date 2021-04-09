@@ -13,14 +13,14 @@ import cv2
 import torch.optim
 import os
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from data_process import data_eval
-from src.MultiTaskCNN import MultiTaskCNN
+from src.MultiTaskCNN1 import MultiTaskCNN
 import utils.utils as utils
 from utils.utils import load_ckpt, intersectionAndUnion, AverageMeter, accuracy, macc
 
 parser = argparse.ArgumentParser(description='RGBD Sementic Segmentation')
-parser.add_argument('--data-dir', default=None, metavar='DIR',
+parser.add_argument('--data-dir', default='', metavar='DIR',
                     help='path to dataset')
 parser.add_argument('-o', '--output', default='./result/', metavar='DIR',
                     help='path to output')
@@ -34,7 +34,7 @@ parser.add_argument('--visualize', default=False, action='store_true',
                     help='if output image')
 
 args = parser.parse_args()
-device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:2" if args.cuda and torch.cuda.is_available() else "cpu")
 image_w = 640
 image_h = 480
 img_mean = [0.485, 0.456, 0.406]
@@ -42,7 +42,7 @@ img_std = [0.229, 0.224, 0.225]
 
 
 def inference():
-	model = MultiTaskCNN(38, depth_channel=1, pretrained=False, arch='resnet18')
+	model = MultiTaskCNN(38, depth_channel=1, pretrained=False, arch='resnet50')
 	load_ckpt(model, None, args.last_ckpt, device)
 	model.eval()
 	model = model.to(device)
@@ -52,7 +52,7 @@ def inference():
 	                                                                       Normalize()]),
 	                             data_dir=args.data_dir
 	                             )
-	val_loader = DataLoader(val_data, batch_size=1, shuffle=True, num_workers=1, pin_memory=True)
+	val_loader = DataLoader(val_data, batch_size=1, shuffle=True, num_workers=4, pin_memory=False)
 
 	acc_meter = AverageMeter()
 	intersection_meter = AverageMeter()
@@ -110,12 +110,12 @@ class Normalize(object):
         image = image / 255
         image = torchvision.transforms.Normalize(mean=[0.4850042694973687, 0.41627756261047333, 0.3981809741523051],
                                                  std=[0.26415541082494515, 0.2728415392982039, 0.2831175140191598])(image)
-        depth = torchvision.transforms.Normalize(mean=[2.8424503515351494],
-                                                 std=[0.9932836506164299])(depth)
+        # depth = torchvision.transforms.Normalize(mean=[2.8424503515351494],
+        #                                          std=[0.9932836506164299])(depth)
         sample['origin_image'] = origin_image
         sample['origin_depth'] = origin_depth
         sample['image'] = image
-        sample['depth'] = depth
+        # sample['depth'] = depth
 
         return sample
 

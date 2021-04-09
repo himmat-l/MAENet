@@ -167,10 +167,10 @@ def _load_pretrained_dict(model, urls):
     model.load_state_dict(net_state_dict)
     print('----successfully load pretrained model----')
 
-
+# pretrained: 如果没有自己训练的模型，就导入resnet的预训练模型
 def resnet18(pretrained=False):
     model = ResNet(BasicBlock, [2, 2, 2, 2])
-    if pretrained:
+    if pretrained is True:
         _load_pretrained_dict(model, model_urls['resnet18'])
     return model
 
