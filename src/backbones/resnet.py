@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 from utils.utils import load_url
 
-__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'resnet50_3', 'resnet18_3']
 
 # 'resnet18_3'、'resnet50_3'、'resnet101_3'为将7*7卷积核换成3个3*3卷积核后的预训练权重
 model_urls = {
@@ -13,7 +13,8 @@ model_urls = {
     'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
     'resnet18_3': 'http://sceneparsing.csail.mit.edu/model/pretrained_resnet/resnet18-imagenet.pth',
-    'resnet50_3': 'http://sceneparsing.csail.mit.edu/model/pretrained_resnet/resnet50-imagenet.pth',
+    # 'resnet50_3': 'http://sceneparsing.csail.mit.edu/model/pretrained_resnet/resnet50-imagenet.pth',
+    'resnet50_3': '/home/liuxiaohui/MAENet/models/resnet50-imagenet.pth',
     'resnet101_3': 'http://sceneparsing.csail.mit.edu/model/pretrained_resnet/resnet101-imagenet.pth'
 }
 
@@ -86,7 +87,67 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
+class ResNet_3(nn.Module):
+    def __init__(self, block, layers, pretrained=False):
+        super(ResNet_3, self).__init__()
+        self.inplanes = 64
+        self.conv1 = conv3x3(3, 64, stride=2)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(64, 64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.conv3 = conv3x3(64, 64)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.relu3 = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
+        if not pretrained:
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                    m.weight.data.normal_(0, math.sqrt(2. / n))
+                elif isinstance(m, nn.BatchNorm2d):
+                    m.weight.data.fill_(1)
+                    m.bias.data.zero_()
+            print('----successfully initialize resnet weights----')
+
+    def forward(self, x):
+        x = self.relu1(self.bn1(self.conv1(x)))
+        x = self.relu2(self.bn2(self.conv2(x)))
+        x = self.relu3(self.bn3(self.conv3(x)))
+        # print('x:', x.shape)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        # print('layer1:', x.shape)
+        x = self.layer2(x)
+        # print('layer2:', x.shape)
+        x = self.layer3(x)
+        # print('layer3:', x.shape)
+        x = self.layer4(x)
+        # print('layer4:', x.shape)
+
+        return x
+
+    def _make_layer(self, block, out_channel, blocks, stride=1):
+        downsample = None
+        layers = []
+        if stride != 1 or self.inplanes != out_channel * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, out_channel * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channel * block.expansion),
+            )
+        layers.append(block(self.inplanes, out_channel, stride, downsample))
+        self.inplanes = out_channel * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, out_channel))
+
+        return nn.Sequential(*layers)
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -165,49 +226,80 @@ def _load_pretrained_dict(model, urls):
     pretrained_dict_1 = {k: v for k, v in pretrained_dict.items() if k in net_state_dict}
     net_state_dict.update(pretrained_dict_1)
     model.load_state_dict(net_state_dict)
-    print('----successfully load pretrained model----')
+    print('----successfully load resnet pretrained model----')
+
+
+def _load_pretrained_dict_3(model, urls):
+    pretrained_dict = load_url(urls)
+    net_state_dict = model.state_dict()
+    pretrained_dict_1 = {k: v for k, v in pretrained_dict.items() if k in net_state_dict and ('layer' in k)}
+    net_state_dict.update(pretrained_dict_1)
+    model.load_state_dict(net_state_dict)
+    print('----successfully load resnet_3 pretrained model----')
 
 # pretrained: 如果没有自己训练的模型，就导入resnet的预训练模型
 def resnet18(pretrained=False):
-    model = ResNet(BasicBlock, [2, 2, 2, 2])
+    model = ResNet(BasicBlock, [2, 2, 2, 2], pretrained=pretrained)
     if pretrained is True:
         _load_pretrained_dict(model, model_urls['resnet18'])
     return model
 
+def resnet18_3(pretrained=False):
+    model = ResNet_3(BasicBlock, [2, 2, 2, 2], pretrained=pretrained)
+    if pretrained is True:
+        _load_pretrained_dict_3(model, model_urls['resnet18'])
+    return model
 
 def resnet34(pretrained=False):
-    model = ResNet(BasicBlock, [3, 4, 6, 3])
+    model = ResNet(BasicBlock, [3, 4, 6, 3], pretrained=pretrained)
     if pretrained:
         _load_pretrained_dict(model, model_urls['resnet34'])
     return model
 
 
 def resnet50(pretrained=False):
-    model = ResNet(Bottleneck, [3, 4, 6, 3])
+    model = ResNet(Bottleneck, [3, 4, 6, 3], pretrained=pretrained)
     if pretrained:
         _load_pretrained_dict(model, model_urls['resnet50'])
     return model
 
 
+def resnet50_3(pretrained=False):
+    model = ResNet_3(Bottleneck, [3, 4, 6, 3], pretrained=pretrained)
+    if pretrained:
+        _load_pretrained_dict_3(model, model_urls['resnet50'])
+    return model
+
 def resnet101(pretrained=False):
-    model = ResNet(Bottleneck, [3, 4, 23, 3])
+    model = ResNet(Bottleneck, [3, 4, 23, 3], pretrained=pretrained)
     if pretrained:
         _load_pretrained_dict(model, model_urls['resnet101'])
     return model
 
 
 def resnet152(pretrained=False):
-    model = ResNet(Bottleneck, [3, 8, 36, 3])
+    model = ResNet(Bottleneck, [3, 8, 36, 3], pretrained=pretrained)
     if pretrained:
         _load_pretrained_dict(model, model_urls['resnet152'])
     return model
 
 
 if __name__ == '__main__':
-    in_batch, in_h, in_w = 4, 480, 640
-    rgb = torch.randn(in_batch, 3, in_h, in_w)
-    # resnet34 = ResNet(BasicBlock, [3,4,6,3])
-    # resnet152 = ResNet(Bottleneck, [3, 8, 36, 3])
-    resnet18 = resnet18(pretrained=False)
-    ressult = resnet18(rgb)
-    print('out：', ressult.shape)
+    model = resnet50_3(pretrained=False)
+    pretrained_dict = load_url('https://download.pytorch.org/models/resnet50-19c8e357.pth')
+    net_state_dict = model.state_dict()
+    pretrained_dict_1 = {k: v for k, v in pretrained_dict.items() if (k in net_state_dict) and ('layer' in k)}
+    print('pretrained_dict:', pretrained_dict.items())
+    print('net_state_dict:', net_state_dict.keys())
+    print('pretrained_dict_1:', pretrained_dict_1.keys())
+    # net_state_dict = model.state_dict()
+    # pretrained_dict_1 = {k: v for k, v in pretrained_dict.items() if k in net_state_dict}
+    # net_state_dict.update(pretrained_dict_1)
+    # model.load_state_dict(net_state_dict)
+    # in_batch, in_h, in_w = 4, 480, 640
+    # rgb = torch.randn(in_batch, 3, in_h, in_w)
+    # # resnet34 = ResNet(BasicBlock, [3,4,6,3])
+    # # resnet152 = ResNet(Bottleneck, [3, 8, 36, 3])
+    # resnet50 = resnet50(pretrained=False)
+    # ressult = resnet50(rgb)
+    # print('out：', ressult.shape)

@@ -4,7 +4,10 @@ from torch.autograd import Variable
 
 from collections import OrderedDict
 import numpy as np
-
+from src.MultiTaskCNN2 import MultiTaskCNN_Atten, MultiTaskCNN, MultiTaskCNN_3, MultiTaskCNN_Atten3
+from src.BiseNetModule1 import FFMBlock
+from src.BiseNetModule1 import BiseNet
+# ---------------------计算模型参数量和计算量，支持多输入----------------- #
 
 def summary(model, input_size, batch_size=-1, device=torch.device('cuda:0'), dtypes=None):
     result, params_info = summary_string(
@@ -52,11 +55,13 @@ def summary_string(model, input_size, batch_size=-1, device=torch.device('cuda:0
             hooks.append(module.register_forward_hook(hook))
 
     # multiple inputs to the network
-    if isinstance(input_size, tuple):
-        input_size = [input_size]
+    # if isinstance(input_size, tuple):
+    #     input_size = [input_size]
+    if isinstance(input_size, list):
+        input_size = input_size
 
     # batch_size of 2 for batchnorm
-    x = [torch.rand(2, *in_size).type(dtype).to(device=device)
+    x = [torch.rand(4, *in_size).type(dtype)
          for in_size, dtype in zip(input_size, dtypes)]
 
     # create properties
@@ -118,3 +123,38 @@ def summary_string(model, input_size, batch_size=-1, device=torch.device('cuda:0
     summary_str += "----------------------------------------------------------------" + "\n"
     # return summary
     return summary_str, (total_params, trainable_params)
+
+
+class Conv(nn.Module):
+    def __init__(self):
+        super(Conv, self).__init__()
+        # 7*7的卷积参数量为0.04M
+        # self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        # print('x:', x.shape)
+        x = self.maxpool(x)
+        return x
+
+if __name__ == "__main__":
+    in_rgb = torch.randn(4, 3, 224, 640)
+    out_dep = torch.randn(4, 1, 480, 640)
+    # RD-BiNet,只加了深度信息
+    # net = MultiTaskCNN(38, arch='resnet50', use_aspp=False)
+    # 加了ACM
+    net = MultiTaskCNN_Atten3(38, arch='resnet50_3', use_aspp=False)
+    # BiseNet
+    # net = BiseNet(38, pretrained=False, depth_channel=3, arch='resnet50')
+    # net = FFMBlock(3584, 38)
+    # net = Conv()
+    # 多输入形式
+    summary(net, [(3,640,480),(1,640,480)],batch_size=4)
+    # 单输入形式
+    # summary(net, [(3, 640, 480)], batch_size=4)

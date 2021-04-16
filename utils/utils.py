@@ -49,6 +49,23 @@ label_colours = [(0, 0, 0),
                  (161, 176, 169), (80, 29, 135), (177, 105, 197),(139, 110, 246)]
 # 剩下的颜色映射值：(161, 176, 169), (80, 29, 135), (177, 105, 197),(139, 110, 246)
 
+# 测试时的颜色映射
+# label_colours = [(0, 0, 0),
+#                  # 0=background
+#                  (108, 191, 119), (1, 140, 187), (33, 43, 237),
+#                  (54, 77, 98), (67, 195, 192), (161, 107, 108),
+#                  (133, 160, 103), (186, 25, 203), (84, 62, 35),
+#                  (44, 80, 130), (31, 184, 157), (101, 144, 77),
+#                  (23, 197, 62), (141, 168, 145), (142, 151, 136),
+#                  (115, 201, 77), (100, 216, 255), (57, 156, 36),
+#                  (88, 108, 129), (105, 129, 112), (42, 137, 126),
+#                  (155, 108, 249), (166, 148, 143), (81, 91, 87),
+#                  (100, 124, 51), (73, 131, 121), (157, 210, 220),
+#                  (134, 181, 60), (221, 223, 147), (123, 108, 131),
+#                  (161, 66, 179), (163, 221, 160), (198, 244, 2),
+#                  (99, 121, 30), (49, 89, 240), (116, 108, 9),
+#                  (161, 176, 169), (80, 29, 135), (177, 105, 197),(139, 110, 246)]
+
 
 def load_url(url, model_dir='./pretrained', map_location=None):
     if not os.path.exists(model_dir):
@@ -145,8 +162,8 @@ def color_label_eval(label):
     colored = np.asarray(colored_label(label)).astype(np.float32)
     colored = colored.squeeze()
 
-    # return torch.from_numpy(colored.transpose([1, 0, 2, 3]))
-    return colored.transpose([0, 2, 1])
+    return torch.from_numpy(colored[np.newaxis, ...].transpose([0,1, 3,2]))
+    # return colored.transpose([0, 2, 1])
 
 def color_label(label):
     label = label.clone().cpu().data.numpy()
@@ -159,6 +176,7 @@ def color_label(label):
         return torch.from_numpy(colored.transpose([1, 0, 2, 3]))
     except ValueError:
         return torch.from_numpy(colored[np.newaxis, ...])
+    return colored.transpose([0, 2, 1])
 
 
 def print_log(global_step, epoch, local_count, count_inter, dataset_size, loss, time_inter):

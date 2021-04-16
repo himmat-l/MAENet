@@ -23,6 +23,7 @@ import unittest
 import inspect
 
 from src.MultiTaskCNN2 import MultiTaskCNN, MultiTaskCNN_DA
+from src.BiseNetModule1 import BiseNet
 from data_process import data_eval
 from utils import utils
 from utils.utils import save_ckpt, load_ckpt, print_log, poly_lr_scheduler
@@ -83,14 +84,14 @@ args = parser.parse_args()
 device = torch.device("cuda:2"if args.cuda and torch.cuda.is_available() else "cpu")  #if args.cuda and torch.cuda.is_available() else "cpu"
 image_h = 480
 image_w = 640
-log_file = '/home/liuxiaohui/MAENet/summary/4.9-dw-aspp/log.txt'
+log_file = '/home/liuxiaohui/MAENet/summary/bisenet/log.txt'
 # 训练函数
 def train():
     # 记录数据在tensorboard中显示
     writer_loss = SummaryWriter(os.path.join(args.summary_dir, 'loss'))
-    writer_loss1 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss1'))
-    writer_loss2 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss2'))
-    writer_loss3 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss3'))
+    # writer_loss1 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss1'))
+    # writer_loss2 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss2'))
+    # writer_loss3 = SummaryWriter(os.path.join(args.summary_dir, 'loss', 'loss3'))
     writer_acc = SummaryWriter(os.path.join(args.summary_dir, 'macc'))
 
     # 准备数据集
@@ -119,9 +120,9 @@ def train():
 
     # build model
     if args.last_ckpt:
-        model = MultiTaskCNN_DA(38, depth_channel=1, pretrained=False, arch='resnet50', use_aspp=True)
+        model = BiseNet(38, pretrained=False, depth_channel=3, arch='resnet50')
     else:
-        model = MultiTaskCNN_DA(38, depth_channel=1, pretrained=True, arch='resnet50', use_aspp=True)
+        model = BiseNet(38, pretrained=True, depth_channel=3, arch='resnet50')
 
 
     # build optimizer
@@ -137,6 +138,7 @@ def train():
     global_step = 0
     max_miou_val = 0
     freeze_epoch = 100
+    loss_count = 0
     # 如果有模型的训练权重，则获取global_step，start_epoch
     if args.last_ckpt:
         global_step, args.start_epoch = load_ckpt(model, optimizer, args.last_ckpt, device)
@@ -153,26 +155,25 @@ def train():
         #         for param in layer.parameters():
         #             param.requires_grad = False
         tq = tqdm(total=len(train_loader) * args.batch_size)
-        # if epoch <= 150:
-        #     lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
-        # else:
-        #     lr = args.lr * (1 - 150 / args.epoch) ** 0.9
-        # lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
-        optimizer.param_groups[0]['lr'] = args.lr
+        if loss_count >= 10:
+            args.lr = 0.5 * args.lr
+            loss_count = 0
+        lr = poly_lr_scheduler(optimizer, args.lr, iter=epoch, max_iter=args.epochs)
+        optimizer.param_groups[0]['lr'] = lr
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 30, gamma=0.5)
         tq.set_description('epoch %d, lr %f' % (epoch, args.lr))
         loss_record = []
-        loss1_record = []
-        loss2_record = []
-        loss3_record = []
+        # loss1_record = []
+        # loss2_record = []
+        # loss3_record = []
         local_count = 0
         # print('1')
         for batch_idx, data in enumerate(train_loader):
             image = data['image'].to(device)
-            depth = data['depth'].to(device)
+            # depth = data['depth'].to(device)
             label = data['label'].long().to(device)
             # print('label', label.shape)
-            output, output_sup1, output_sup2 = model(image, depth)
+            output, output_sup1, output_sup2 = model(image)
             loss1 = loss_func(output, label)
             loss2 = loss_func(output_sup1, label)
             loss3 = loss_func(output_sup2, label)
@@ -185,40 +186,38 @@ def train():
             global_step += 1
             local_count += image.data.shape[0]
             writer_loss.add_scalar('loss_step', loss, global_step)
-            writer_loss1.add_scalar('loss1_step', loss1, global_step)
-            writer_loss2.add_scalar('loss2_step', loss2, global_step)
-            writer_loss3.add_scalar('loss3_step', loss3, global_step)
+            # writer_loss1.add_scalar('loss1_step', loss1, global_step)
+            # writer_loss2.add_scalar('loss2_step', loss2, global_step)
+            # writer_loss3.add_scalar('loss3_step', loss3, global_step)
             loss_record.append(loss.item())
-            loss1_record.append(loss1.item())
-            loss2_record.append(loss2.item())
-            loss3_record.append(loss3.item())
+            # loss1_record.append(loss1.item())
+            # loss2_record.append(loss2.item())
+            # loss3_record.append(loss3.item())
             if global_step % args.print_freq == 0 or global_step == 1:
                 for name, param in model.named_parameters():
                     writer_loss.add_histogram(name, param.clone().cpu().data.numpy(), global_step, bins='doane')
-                writer_loss.add_graph(model,[image, depth])
-                grid_image1 = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
-                writer_loss.add_image('image', grid_image1, global_step)
-                grid_image2 = make_grid(depth[:3].clone().cpu().data, 3, normalize=True)
-                writer_loss.add_image('depth', grid_image2, global_step)
-                grid_image3 = make_grid(utils.color_label(torch.max(output[:3], 1)[1]), 3,
-                                        normalize=False,
-                                        range=(0, 255))
-                writer_loss.add_image('Predicted label', grid_image3, global_step)
-                grid_image4 = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
-                writer_loss.add_image('Groundtruth label', grid_image4, global_step)
+                writer_loss.add_graph(model,[image])
+                # grid_image1 = make_grid(image[:3].clone().cpu().data, 3, normalize=True)
+                # writer_loss.add_image('image', grid_image1, global_step)
+                # grid_image3 = make_grid(utils.color_label(torch.max(output[:3], 1)[1]), 3,
+                #                         normalize=False,
+                #                         range=(0, 255))
+                # writer_loss.add_image('Predicted label', grid_image3, global_step)
+                # grid_image4 = make_grid(utils.color_label(label[:3]), 3, normalize=False, range=(0, 255))
+                # writer_loss.add_image('Groundtruth label', grid_image4, global_step)
 
 
         tq.close()
         loss_train_mean = np.mean(loss_record)
         with open(log_file,'a') as f:
             f.write(str(epoch) + '\t' + str(loss_train_mean))
-        loss1_train_mean = np.mean(loss1_record)
-        loss2_train_mean = np.mean(loss2_record)
-        loss3_train_mean = np.mean(loss3_record)
+        # loss1_train_mean = np.mean(loss1_record)
+        # loss2_train_mean = np.mean(loss2_record)
+        # loss3_train_mean = np.mean(loss3_record)
         writer_loss.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
-        writer_loss1.add_scalar('epoch/sub_loss_epoch_train', float(loss1_train_mean), epoch)
-        writer_loss2.add_scalar('epoch/sub_loss_epoch_train', float(loss2_train_mean), epoch)
-        writer_loss3.add_scalar('epoch/sub_loss_epoch_train', float(loss3_train_mean), epoch)
+        # writer_loss1.add_scalar('epoch/sub_loss_epoch_train', float(loss1_train_mean), epoch)
+        # writer_loss2.add_scalar('epoch/sub_loss_epoch_train', float(loss2_train_mean), epoch)
+        # writer_loss3.add_scalar('epoch/sub_loss_epoch_train', float(loss3_train_mean), epoch)
         print('loss for train : %f' % loss_train_mean)
         print('----validation starting----')
         # tq_val = tqdm(total=len(val_loader) * args.batch_size)
@@ -239,12 +238,12 @@ def train():
                 # origin_image = sample['origin_image'].numpy()
                 # origin_depth = sample['origin_depth'].numpy()
                 image_val = sample['image'].to(device)
-                depth_val = sample['depth'].to(device)
+                # depth_val = sample['depth'].to(device)
                 label_val = sample['label'].numpy()
 
                 with torch.no_grad():
                     start = time.time()
-                    pred = model(image_val, depth_val)
+                    pred = model(image_val)
                     end = time.time()
                     duration = end - start
                     val_total_time += duration
@@ -274,13 +273,16 @@ def train():
         print('----validation finished----')
         model.train()
         # # 每隔save_epoch_freq个epoch就保存一次权重
-        if epoch != args.start_epoch and iou.mean() >= max_miou_val:
-            print('mIoU:', iou.mean())
-            if not os.path.isdir(args.ckpt_dir):
-                os.mkdir(args.ckpt_dir)
-            save_ckpt(args.ckpt_dir, model, optimizer, global_step, epoch, local_count, num_train)
-            max_miou_val = iou.mean()
-            # max_macc_val = mAcc.mean()
+        if epoch != args.start_epoch:
+            if iou.mean() >= max_miou_val:
+                print('mIoU:', iou.mean())
+                if not os.path.isdir(args.ckpt_dir):
+                    os.mkdir(args.ckpt_dir)
+                save_ckpt(args.ckpt_dir, model, optimizer, global_step, epoch, local_count, num_train)
+                max_miou_val = iou.mean()
+                # max_macc_val = mAcc.mean()
+            else:
+                loss_count += 1
         torch.cuda.empty_cache()
 
 
@@ -290,6 +292,12 @@ def train():
 
 if __name__ == '__main__':
     train()
+
+    # net = BiseNet(38, pretrained=False, depth_channel=3, arch='resnet50')
+
+
+
+
 
 
 

@@ -13,19 +13,16 @@ from scipy import misc
 
 image_h = 480
 image_w = 640
-# train_file = '../data/NYUDv2/train.txt'
-# test_file = '../data/NYUDv2/test.txt'
 train_file = '/home/liuxiaohui/MAENet/data/sunrgbd/train37.txt'
 test_file = '/home/liuxiaohui/MAENet/data/sunrgbd/test37.txt'
 
 
 def make_dataset_fromlst(listfilename):
     """
-    SUN list format:
+    My Data list format:
     imagepath seglabelpath depthpath HHApath
     """
     images = []
-    segs = []
     depths = []
     with open(listfilename, 'r') as f:
         content = f.readlines()
@@ -33,11 +30,10 @@ def make_dataset_fromlst(listfilename):
         # print('content_split:',content[0].strip().split(' '))
         for x in content:
             if x != '\n':
-                imgname, depthname, segname = x.strip().split(' ')
+                imgname, depthname = x.strip().split(' ')
                 images += [imgname]
-                segs += [segname]
                 depths += [depthname]
-    return {'images': images, 'labels': segs, 'depths': depths}
+    return {'images': images, 'depths': depths}
 
 
 class ReadData(Dataset):
@@ -48,11 +44,9 @@ class ReadData(Dataset):
         if 'train' in self.data_dir:
             self.img_dir_train = result['images']
             self.depth_dir_train = result['depths']
-            self.label_dir_train = result['labels']
         else:
             self.img_dir_test = result['images']
             self.depth_dir_test = result['depths']
-            self.label_dir_test = result['labels']
 
     def __len__(self):
         if 'train' in self.data_dir:
@@ -64,22 +58,19 @@ class ReadData(Dataset):
         if 'train' in self.data_dir:
             img_dir = self.img_dir_train
             depth_dir = self.depth_dir_train
-            label_dir = self.label_dir_train
         else:
             img_dir = self.img_dir_test
             depth_dir = self.depth_dir_test
-            label_dir = self.label_dir_test
 
         # 当图像格式为npy
         # label = np.load(label_dir[idx])
         # depth = np.load(depth_dir[idx])
         # image = np.load(img_dir[idx])
         # 当图像格式为jpg或png   uint8   uint16
-        label = misc.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', label_dir[idx]))
-        depth = misc.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', depth_dir[idx]))/10000
-        image = mpimg.imread(os.path.join('/home/liuxiaohui/MAENet/data/sunrgbd', img_dir[idx]))
+        depth = misc.imread(os.path.join('/home/liuxiaohui/MAENet/data/MyData', depth_dir[idx]))/10000
+        image = mpimg.imread(os.path.join('/home/liuxiaohui/MAENet/data/MyData', img_dir[idx]))
 
-        sample = {'image': image, 'depth': depth, 'label': label}
+        sample = {'image': image, 'depth': depth}
 
         if self.transform:
             sample = self.transform(sample)
@@ -123,12 +114,12 @@ class RandomHSV(object):
         img_hsv = np.stack([img_h, img_s, img_v], axis=2)
         img_new = matplotlib.colors.hsv_to_rgb(img_hsv)
 
-        return {'image': img_new, 'depth': sample['depth'], 'label': sample['label']}
+        return {'image': img_new, 'depth': sample['depth']}
 
 
 class scaleNorm(object):
     def __call__(self, sample):
-        image, depth, label = sample['image'], sample['depth'], sample['label']
+        image, depth= sample['image'], sample['depth']
 
         # Bi-linear
         image = skimage.transform.resize(image, (image_h, image_w), order=1,
@@ -136,10 +127,8 @@ class scaleNorm(object):
         # Nearest-neighbor
         depth = skimage.transform.resize(depth, (image_h, image_w), order=0,
                                          mode='reflect', preserve_range=True)
-        label = skimage.transform.resize(label, (image_h, image_w), order=0,
-                                         mode='reflect', preserve_range=True)
 
-        return {'image': image, 'depth': depth, 'label': label}
+        return {'image': image, 'depth': depth}
 
 # 随机缩放
 class RandomScale(object):
@@ -148,7 +137,7 @@ class RandomScale(object):
         self.scale_high = max(scale)
 
     def __call__(self, sample):
-        image, depth, label = sample['image'], sample['depth'], sample['label']
+        image, depth= sample['image'], sample['depth']
 
         # random.uniform(x,y):随机生成x，y之间的一个实数
         target_scale = random.uniform(self.scale_low, self.scale_high)
@@ -161,10 +150,8 @@ class RandomScale(object):
         # Nearest-neighbor
         depth = skimage.transform.resize(depth, (target_height, target_width),
                                          order=0, mode='reflect', preserve_range=True)
-        label = skimage.transform.resize(label, (target_height, target_width),
-                                         order=0, mode='reflect', preserve_range=True)
 
-        return {'image': image, 'depth': depth, 'label': label}
+        return {'image': image, 'depth': depth}
 
 # 随机裁剪
 class RandomCrop(object):
@@ -173,26 +160,24 @@ class RandomCrop(object):
         self.tw = tw
 
     def __call__(self, sample):
-        image, depth, label = sample['image'], sample['depth'], sample['label']
+        image, depth= sample['image'], sample['depth']
         h = image.shape[0]
         w = image.shape[1]
         i = random.randint(0, h - self.th)
         j = random.randint(0, w - self.tw)
 
         return {'image': image[i:i + image_h, j:j + image_w, :],
-                'depth': depth[i:i + image_h, j:j + image_w],
-                'label': label[i:i + image_h, j:j + image_w]}
+                'depth': depth[i:i + image_h, j:j + image_w]}
 
 # 随机翻转
 class RandomFlip(object):
     def __call__(self, sample):
-        image, depth, label = sample['image'], sample['depth'], sample['label']
+        image, depth= sample['image'], sample['depth']
         if random.random() > 0.5:
             image = np.fliplr(image).copy()
             depth = np.fliplr(depth).copy()
-            label = np.fliplr(label).copy()
 
-        return {'image': image, 'depth': depth, 'label': label}
+        return {'image': image, 'depth': depth}
 
 
 # Transforms on torch.*Tensor
@@ -216,7 +201,7 @@ class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, depth, label = sample['image'], sample['depth'], sample['label']
+        image, depth= sample['image'], sample['depth']
 
         # Generate different label scales
         # label2 = skimage.transform.resize(label, (label.shape[0] // 2, label.shape[1] // 2),
@@ -234,8 +219,7 @@ class ToTensor(object):
         image = image.transpose((2, 0, 1))
         depth = np.expand_dims(depth, 0).astype(np.float)
         return {'image': torch.from_numpy(image).float(),
-                'depth': torch.from_numpy(depth).float(),
-                'label': torch.from_numpy(label).float(),
+                'depth': torch.from_numpy(depth).float()
                 # 'label2': torch.from_numpy(label2).float(),
                 # 'label3': torch.from_numpy(label3).float(),
                 # 'label4': torch.from_numpy(label4).float(),
